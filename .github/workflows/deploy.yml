@@ -22,7 +22,8 @@ jobs:
           curl -fsS -X POST "$WORKER_HOOK"
 
   web:
-    if: github.event.workflow_run.conclusion == 'success'
+    # Skipped until the API_URL repo variable exists, so no build points at nowhere.
+    if: github.event.workflow_run.conclusion == 'success' && vars.API_URL != ''
     runs-on: ubuntu-latest
     env:
       # Job-level so the deploy step's `if` can see whether it's configured.
@@ -55,7 +56,7 @@ jobs:
           channelId: live
 
   android:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.conclusion == 'success' && vars.API_URL != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
