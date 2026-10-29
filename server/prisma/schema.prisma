@@ -1,0 +1,235 @@
+// Duo data model. Locked on Day 1: every table the 7-day plan needs exists
+// here, so later days add behaviour, not migrations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String?  @map("password_hash")
+  googleId     String?  @unique @map("google_id")
+  // A user is in at most one active pair. Pairing sets this on both users in
+  // one transaction with a "currentPairId IS NULL" guard, which makes
+  // double-pairing impossible even under concurrent joins.
+  currentPairId String? @map("current_pair_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  profile       Profile?
+  currentPair   Pair?          @relation("CurrentPair", fields: [currentPairId], references: [id], onDelete: SetNull)
+  refreshTokens RefreshToken[]
+  invites       Invite[]       @relation("InviteCreator")
+  answers       Answer[]
+  submissions   Submission[]
+  events        Event[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  // SHA-256 of the opaque token; the raw token is only ever held by the client.
+  tokenHash    String    @unique @map("token_hash")
+  // Tokens from one login share a family; reusing a rotated token revokes it.
+  familyId     String    @map("family_id") @db.Uuid
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_tokens")
+}
+
+model Profile {
+  userId      String   @id @map("user_id") @db.Uuid
+  displayName String   @map("display_name")
+  interests   String[]
+  // IANA zone, e.g. "Asia/Kolkata". Used for timezone-safe day boundaries.
+  timezone    String   @default("UTC")
+  avatarUrl   String?  @map("avatar_url")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model Pair {
+  id        String    @id @default(uuid()) @db.Uuid
+  userAId   String    @map("user_a_id") @db.Uuid
+  userBId   String    @map("user_b_id") @db.Uuid
+  // The pair's "day" is computed in this zone (inviter's zone at pairing).
+  timezone  String    @default("UTC")
+  createdAt DateTime  @default(now()) @map("created_at")
+  endedAt   DateTime? @map("ended_at")
+
+  members        User[]          @relation("CurrentPair")
+  games          Game[]
+  streak         Streak?
+  events         Event[]
+  generationLogs GenerationLog[]
+
+  @@index([userAId])
+  @@index([userBId])
+  @@map("pairs")
+}
+
+model Invite {
+  id        String    @id @default(uuid()) @db.Uuid
+  code      String    @unique
+  creatorId String    @map("creator_id") @db.Uuid
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  usedById  String?   @map("used_by_id") @db.Uuid
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  creator User @relation("InviteCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@map("invites")
+}
+
+enum GameType {
+  WHO_KNOWS_WHOM
+  WOULD_YOU_RATHER
+  SHARED_TRIVIA
+}
+
+enum GameSource {
+  AI
+  BANK
+}
+
+model Game {
+  id        String     @id @default(uuid()) @db.Uuid
+  pairId    String     @map("pair_id") @db.Uuid
+  // Calendar day in the pair's timezone, stored as a DATE ("2026-10-29").
+  day       DateTime   @db.Date
+  type      GameType
+  source    GameSource
+  title     String
+  createdAt DateTime   @default(now()) @map("created_at")
+  // Set when both partners have submitted; drives the live reveal.
+  completedAt DateTime? @map("completed_at")
+
+  pair        Pair         @relation(fields: [pairId], references: [id], onDelete: Cascade)
+  questions   Question[]
+  answers     Answer[]
+  submissions Submission[]
+
+  @@unique([pairId, day])
+  @@map("games")
+}
+
+model Question {
+  id       String @id @default(uuid()) @db.Uuid
+  gameId   String @map("game_id") @db.Uuid
+  position Int
+  prompt   String
+  options  String[]
+  // Only SHARED_TRIVIA has a right answer.
+  correctOption Int? @map("correct_option")
+  // Type-specific extras (e.g. WHO_KNOWS_WHOM: which partner the question is about).
+  meta     Json   @default("{}")
+
+  game    Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@unique([gameId, position])
+  @@map("questions")
+}
+
+model Answer {
+  id         String   @id @default(uuid()) @db.Uuid
+  questionId String   @map("question_id") @db.Uuid
+  gameId     String   @map("game_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  choice     Int
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  game     Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, userId])
+  @@map("answers")
+}
+
+// One row per player per game. The idempotency key makes a retried or
+// double-tapped submit return the original result instead of a duplicate.
+model Submission {
+  id             String   @id @default(uuid()) @db.Uuid
+  gameId         String   @map("game_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  idempotencyKey String   @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, userId])
+  @@map("submissions")
+}
+
+model Streak {
+  pairId          String    @id @map("pair_id") @db.Uuid
+  current         Int       @default(0)
+  longest         Int       @default(0)
+  lastCompletedDay DateTime? @map("last_completed_day") @db.Date
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  pair Pair @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@map("streaks")
+}
+
+model Event {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  userId    String?  @map("user_id") @db.Uuid
+  pairId    String?  @map("pair_id") @db.Uuid
+  props     Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  pair Pair? @relation(fields: [pairId], references: [id], onDelete: SetNull)
+
+  @@index([name, createdAt])
+  @@map("events")
+}
+
+enum GenerationStatus {
+  SUCCESS
+  INVALID
+  FAILED
+}
+
+// One row per LLM generation attempt: latency, cost and failures (Day 5).
+model GenerationLog {
+  id           String           @id @default(uuid()) @db.Uuid
+  pairId       String           @map("pair_id") @db.Uuid
+  day          DateTime         @db.Date
+  status       GenerationStatus
+  model        String
+  latencyMs    Int              @map("latency_ms")
+  inputTokens  Int?             @map("input_tokens")
+  outputTokens Int?             @map("output_tokens")
+  costUsd      Decimal?         @map("cost_usd") @db.Decimal(10, 6)
+  error        String?
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  pair Pair @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@map("generation_logs")
+}
