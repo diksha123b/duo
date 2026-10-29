@@ -12,7 +12,12 @@ const schema = z.object({
   GOOGLE_CLIENT_IDS: z
     .string()
     .default('')
-    .transform((s) => s.split(',').map((x) => x.trim()).filter(Boolean)),
+    .transform((s) =>
+      s
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean),
+    ),
   CORS_ORIGINS: z
     .string()
     .default('*')

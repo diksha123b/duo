@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { conflict, unauthorized } from '../../lib/errors.js';
 import { track } from '../../lib/events.js';
+import { rateLimit } from '../../lib/rate-limit.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { isValidTimezone } from '../../lib/time.js';
 import { parse } from '../../lib/validate.js';
@@ -21,9 +22,12 @@ const googleBody = z.object({ idToken: z.string().min(1), timezone });
 const refreshBody = z.object({ refreshToken: z.string().min(1) });
 
 export async function authRoutes(app: FastifyInstance) {
-  const { prisma, tokens, verifyGoogle } = app.deps;
+  const { prisma, redis, tokens, verifyGoogle } = app.deps;
+  // Per-IP limits slow down password guessing and signup spam.
+  const strict = { preHandler: rateLimit(redis, { name: 'auth', max: 10, windowSeconds: 60 }) };
+  const loose = { preHandler: rateLimit(redis, { name: 'auth-refresh', max: 60, windowSeconds: 60 }) };
 
-  app.post('/auth/register', async (req, reply) => {
+  app.post('/auth/register', strict, async (req, reply) => {
     const body = parse(registerBody, req.body);
     if (await prisma.user.findUnique({ where: { email: body.email } })) {
       throw conflict('EMAIL_TAKEN', 'An account with this email already exists');
@@ -32,7 +36,9 @@ export async function authRoutes(app: FastifyInstance) {
       data: {
         email: body.email,
         passwordHash: await hashPassword(body.password),
-        profile: { create: { displayName: body.displayName, interests: [], timezone: body.timezone ?? 'UTC' } },
+        profile: {
+          create: { displayName: body.displayName, interests: [], timezone: body.timezone ?? 'UTC' },
+        },
       },
     });
     await track(prisma, 'sign_up', { userId: user.id, props: { method: 'password' } });
@@ -40,7 +46,7 @@ export async function authRoutes(app: FastifyInstance) {
     return { user: await serializeMe(prisma, user.id), tokens: await tokens.issue(user.id) };
   });
 
-  app.post('/auth/login', async (req) => {
+  app.post('/auth/login', strict, async (req) => {
     const body = parse(loginBody, req.body);
     const user = await prisma.user.findUnique({ where: { email: body.email } });
     // Same error for unknown email and wrong password, so emails can't be probed.
@@ -50,7 +56,7 @@ export async function authRoutes(app: FastifyInstance) {
     return { user: await serializeMe(prisma, user.id), tokens: await tokens.issue(user.id) };
   });
 
-  app.post('/auth/google', async (req, reply) => {
+  app.post('/auth/google', strict, async (req, reply) => {
     const body = parse(googleBody, req.body);
     const identity = await verifyGoogle(body.idToken);
 
@@ -59,7 +65,10 @@ export async function authRoutes(app: FastifyInstance) {
       const existing = await prisma.user.findUnique({ where: { email: identity.email.toLowerCase() } });
       if (existing) {
         // Google verified this email, so linking to the password account is safe.
-        user = await prisma.user.update({ where: { id: existing.id }, data: { googleId: identity.googleId } });
+        user = await prisma.user.update({
+          where: { id: existing.id },
+          data: { googleId: identity.googleId },
+        });
       } else {
         user = await prisma.user.create({
           data: {
@@ -82,13 +91,13 @@ export async function authRoutes(app: FastifyInstance) {
     return { user: await serializeMe(prisma, user.id), tokens: await tokens.issue(user.id) };
   });
 
-  app.post('/auth/refresh', async (req) => {
+  app.post('/auth/refresh', loose, async (req) => {
     const body = parse(refreshBody, req.body);
     const { tokens: next } = await tokens.rotate(body.refreshToken);
     return { tokens: next };
   });
 
-  app.post('/auth/logout', async (req, reply) => {
+  app.post('/auth/logout', loose, async (req, reply) => {
     const body = parse(refreshBody, req.body);
     await tokens.revoke(body.refreshToken);
     reply.code(204);

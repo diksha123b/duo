@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { Redis } from 'ioredis';
 import { afterAll, beforeAll, beforeEach } from 'vitest';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
@@ -14,15 +15,17 @@ const fakeGoogle = async (idToken: string): Promise<GoogleIdentity> => {
 };
 
 export function setupTestApp() {
-  const ctx = {} as { app: FastifyInstance; prisma: ReturnType<typeof createPrisma> };
+  const ctx = {} as { app: FastifyInstance; prisma: ReturnType<typeof createPrisma>; redis: Redis };
 
   beforeAll(async () => {
     const config = loadConfig({ ...process.env, ...TEST_ENV });
     ctx.prisma = createPrisma(config.DATABASE_URL);
-    ctx.app = await buildApp({ config, prisma: ctx.prisma, verifyGoogle: fakeGoogle });
+    ctx.redis = new Redis(config.REDIS_URL);
+    ctx.app = await buildApp({ config, prisma: ctx.prisma, redis: ctx.redis, verifyGoogle: fakeGoogle });
   });
 
   beforeEach(async () => {
+    await ctx.redis.flushdb();
     const tables = await ctx.prisma.$queryRaw<{ tablename: string }[]>`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
     await ctx.prisma.$executeRawUnsafe(
@@ -33,6 +36,7 @@ export function setupTestApp() {
   afterAll(async () => {
     await ctx.app?.close();
     await ctx.prisma?.$disconnect();
+    ctx.redis?.disconnect();
   });
 
   return ctx;
@@ -50,3 +54,5 @@ export async function register(app: FastifyInstance, email = 'asha@example.com',
     tokens: { accessToken: string; refreshToken: string };
   };
 }
+
+export const auth = (accessToken: string) => ({ authorization: `Bearer ${accessToken}` });

@@ -95,7 +95,11 @@ describe('refresh token rotation', () => {
     expect(reuse.json().error.code).toBe('REFRESH_TOKEN_REUSED');
 
     // The legitimately rotated token is now dead too.
-    const after = await ctx.app.inject({ method: 'POST', url: '/auth/refresh', payload: { refreshToken: next } });
+    const after = await ctx.app.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      payload: { refreshToken: next },
+    });
     expect(after.statusCode).toBe(401);
   });
 
@@ -144,7 +148,11 @@ describe('POST /auth/google', () => {
 describe('GET /me', () => {
   it('requires a valid access token', async () => {
     expect((await ctx.app.inject({ method: 'GET', url: '/me' })).statusCode).toBe(401);
-    const res = await ctx.app.inject({ method: 'GET', url: '/me', headers: { authorization: 'Bearer nope' } });
+    const res = await ctx.app.inject({
+      method: 'GET',
+      url: '/me',
+      headers: { authorization: 'Bearer nope' },
+    });
     expect(res.json().error.code).toBe('INVALID_ACCESS_TOKEN');
   });
 });

@@ -2,16 +2,19 @@ import Fastify, { type FastifyInstance, type FastifyRequest } from 'fastify';
 import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import type { PrismaClient } from '@prisma/client';
+import type { Redis } from 'ioredis';
 import type { Config } from './config.js';
 import { AppError, unauthorized } from './lib/errors.js';
 import type { GoogleVerifier } from './lib/google.js';
 import { TokenService, verifyAccessToken } from './lib/tokens.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { pairingRoutes } from './modules/pairing/routes.js';
 import { userRoutes } from './modules/users/routes.js';
 
 export interface Deps {
   config: Config;
   prisma: PrismaClient;
+  redis: Redis;
   tokens: TokenService;
   verifyGoogle: GoogleVerifier;
 }
@@ -56,6 +59,7 @@ export async function buildApp(deps: Omit<Deps, 'tokens'>, opts: { logger?: bool
   app.get('/health', async () => ({ ok: true }));
   await app.register(authRoutes);
   await app.register(userRoutes);
+  await app.register(pairingRoutes);
 
   return app;
 }
