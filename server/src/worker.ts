@@ -39,8 +39,7 @@ const shutdown = async () => {
   await worker.close();
   await queue.close();
   await prisma.$disconnect();
-  redis.disconnect();
-  connection.disconnect();
+  await Promise.all([redis.quit(), connection.quit()]);
   process.exit(0);
 };
 process.on('SIGINT', shutdown);

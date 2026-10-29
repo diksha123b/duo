@@ -6,7 +6,7 @@ import { createGoogleVerifier } from './lib/google.js';
 import { createPrisma } from './lib/prisma.js';
 import { initSentry } from './lib/sentry.js';
 import { createGameProvider } from './lib/providers.js';
-import { attachRealtime } from './modules/realtime/socket.js';
+import { attachRealtime, closeAdapterClients } from './modules/realtime/socket.js';
 
 const config = loadConfig();
 initSentry(config.SENTRY_DSN, config.NODE_ENV, 'api');
@@ -30,9 +30,8 @@ attachRealtime(app, { pubClient, subClient });
 const shutdown = async () => {
   await app.close();
   await prisma.$disconnect();
-  redis.disconnect();
-  pubClient.disconnect();
-  subClient.disconnect();
+  await closeAdapterClients(pubClient, subClient);
+  await redis.quit();
   process.exit(0);
 };
 process.on('SIGINT', shutdown);

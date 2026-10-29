@@ -36,7 +36,7 @@ export function setupTestApp() {
   afterAll(async () => {
     await ctx.app?.close();
     await ctx.prisma?.$disconnect();
-    ctx.redis?.disconnect();
+    await ctx.redis?.quit();
   });
 
   return ctx;

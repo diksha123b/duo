@@ -36,10 +36,16 @@ export function attachRealtime(app: FastifyInstance, opts: { pubClient: Redis; s
 
   // Event handlers are fire-and-forget; an unhandled rejection would crash
   // the process, so every async handler goes through this.
+  // In-flight handlers are tracked so shutdown can wait for them (closing
+  // sockets triggers "offline" broadcasts that still need Redis).
+  const inflight = new Set<Promise<void>>();
   const safe =
     <A extends unknown[]>(fn: (...args: A) => Promise<void>) =>
     (...args: A) => {
-      fn(...args).catch((err) => app.log.error({ err }, 'realtime handler failed'));
+      const run = fn(...args)
+        .catch((err) => app.log.error({ err }, 'realtime handler failed'))
+        .finally(() => inflight.delete(run));
+      inflight.add(run);
     };
 
   io.use((socket, next) => {
@@ -173,6 +179,17 @@ export function attachRealtime(app: FastifyInstance, opts: { pubClient: Redis; s
 
   app.addHook('onClose', async () => {
     await io.close();
+    await Promise.allSettled([...inflight]);
   });
   return io;
+}
+
+/**
+ * Closes the adapter's Redis connections after `io.close()`. The adapter's own
+ * close() fires unsubscribe commands without awaiting them; replies arrive in
+ * order, so awaiting our own unsubscribes first means quitting can't reject them.
+ */
+export async function closeAdapterClients(pubClient: Redis, subClient: Redis) {
+  await Promise.all([subClient.punsubscribe(), subClient.unsubscribe()]);
+  await Promise.all([pubClient.quit(), subClient.quit()]);
 }

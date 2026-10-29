@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { Redis } from 'ioredis';
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { attachRealtime } from '../src/modules/realtime/socket.js';
+import { attachRealtime, closeAdapterClients } from '../src/modules/realtime/socket.js';
 import { auth, register, setupTestApp } from './helpers.js';
 
 const ctx = setupTestApp();
@@ -27,8 +27,7 @@ afterEach(() => {
 afterAll(async () => {
   // Close sockets and the adapter before their Redis connections go away.
   await ctx.app.close();
-  pub.disconnect();
-  sub.disconnect();
+  await closeAdapterClients(pub, sub);
 });
 
 function client(token: string) {

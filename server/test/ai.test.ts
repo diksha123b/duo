@@ -185,7 +185,7 @@ describe('pre-generation job', () => {
     } finally {
       await queue.obliterate({ force: true });
       await queue.close();
-      connection.disconnect();
+      await connection.quit();
     }
   });
 });
