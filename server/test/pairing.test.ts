@@ -129,7 +129,10 @@ describe('invites and pairing', () => {
     const { code } = await createInvite(a.tokens.accessToken);
 
     const results = await Promise.all([join(b.tokens.accessToken, code), join(c.tokens.accessToken, code)]);
-    expect(results.map((r) => r.statusCode).sort()).toEqual([200, 410]);
+    // The loser sees "used" or "already paired" depending on timing; either is correct.
+    const [ok, lost] = [...results].sort((x, y) => x.statusCode - y.statusCode);
+    expect(ok!.statusCode).toBe(200);
+    expect(['INVITE_USED', 'PARTNER_ALREADY_PAIRED']).toContain(lost!.json().error.code);
     expect(await ctx.prisma.pair.count()).toBe(1);
   });
 

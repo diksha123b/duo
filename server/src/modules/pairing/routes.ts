@@ -149,6 +149,7 @@ export async function pairingRoutes(app: FastifyInstance) {
         data: { expiresAt: new Date() },
       });
       await track(prisma, 'paired', { userId: req.userId, pairId: pair.id });
+      app.events.emit('pair:changed', { pairId: pair.id });
       return { pair: { id: pair.id } };
     },
   );
@@ -163,6 +164,7 @@ export async function pairingRoutes(app: FastifyInstance) {
       prisma.user.updateMany({ where: { currentPairId: pairId }, data: { currentPairId: null } }),
     ]);
     await track(prisma, 'unpaired', { userId: req.userId, pairId });
+    app.events.emit('pair:changed', { pairId });
     reply.code(204);
   });
 }
