@@ -1,6 +1,7 @@
 import { Prisma, type Game, type Pair, type PrismaClient, type Question } from '@prisma/client';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { track } from '../../lib/events.js';
+import { applyCompletion } from '../../lib/streak.js';
 import { dateToDay, dayToDate, localDay } from '../../lib/time.js';
 import { bankGame } from './bank.js';
 import { GAME_TYPES, type GameContent, type GameTypeName } from './content.js';
@@ -143,6 +144,7 @@ export class GameService {
       });
       justCompleted = flipped.count === 1;
       if (justCompleted) {
+        await this.recordStreak(game.pairId, dateToDay(game.day));
         await track(this.prisma, 'game_completed', {
           pairId: game.pairId,
           props: { gameId, type: game.type },
@@ -150,6 +152,61 @@ export class GameService {
       }
     }
     return { game: await this.view(gameId, userId), justCompleted, replayed: false };
+  }
+
+  // Row lock so two games completing at once (e.g. a late one) can't race.
+  private async recordStreak(pairId: string, day: string) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT 1 FROM streaks WHERE pair_id = ${pairId}::uuid FOR UPDATE`;
+      const row = await tx.streak.upsert({ where: { pairId }, create: { pairId }, update: {} });
+      const next = applyCompletion(
+        {
+          current: row.current,
+          longest: row.longest,
+          lastCompletedDay: row.lastCompletedDay ? dateToDay(row.lastCompletedDay) : null,
+        },
+        day,
+      );
+      await tx.streak.update({
+        where: { pairId },
+        data: {
+          current: next.current,
+          longest: next.longest,
+          lastCompletedDay: next.lastCompletedDay ? dayToDate(next.lastCompletedDay) : null,
+        },
+      });
+    });
+  }
+
+  // Past games for the user's pair, newest first. Today's game only appears
+  // once it's complete, so history never spoils an unplayed game.
+  async history(userId: string, opts: { before?: string; limit: number }) {
+    const pair = await this.activePairFor(userId);
+    const today = localDay(pair.timezone);
+    const games = await this.prisma.game.findMany({
+      where: {
+        pairId: pair.id,
+        day: opts.before ? { lt: dayToDate(opts.before) } : undefined,
+        OR: [{ day: { lt: dayToDate(today) } }, { completedAt: { not: null } }],
+      },
+      orderBy: { day: 'desc' },
+      take: opts.limit + 1,
+      include: { questions: true, answers: true, submissions: true },
+    });
+    const page = games.slice(0, opts.limit);
+    return {
+      items: page.map((g) => ({
+        id: g.id,
+        day: dateToDay(g.day),
+        type: g.type,
+        title: g.title,
+        completed: g.completedAt !== null,
+        meSubmitted: g.submissions.some((s) => s.userId === userId),
+        partnerSubmitted: g.submissions.some((s) => s.userId !== userId),
+        summary: g.completedAt ? summarise(g, userId) : null,
+      })),
+      nextCursor: games.length > opts.limit ? dateToDay(page[page.length - 1]!.day) : null,
+    };
   }
 
   private async replay(userId: string, gameId: string, idempotencyKey: string) {

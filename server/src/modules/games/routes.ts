@@ -12,6 +12,13 @@ const submitBody = z.object({
     .max(20),
 });
 const idempotencyKey = z.string().min(8).max(100);
+const historyQuery = z.object({
+  before: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
 
 export async function gameRoutes(app: FastifyInstance) {
   const { prisma, redis, games } = app.deps;
@@ -28,6 +35,11 @@ export async function gameRoutes(app: FastifyInstance) {
         });
     }
     return { game };
+  });
+
+  // Registered before /games/:id so "history" isn't parsed as an id.
+  app.get('/games/history', { preHandler: app.authenticate }, async (req) => {
+    return games.history(req.userId, parse(historyQuery, req.query));
   });
 
   app.get('/games/:id', { preHandler: app.authenticate }, async (req) => {

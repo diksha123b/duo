@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { track } from '../../lib/events.js';
 import { rateLimit } from '../../lib/rate-limit.js';
+import { displayStreak } from '../../lib/streak.js';
+import { dateToDay, localDay } from '../../lib/time.js';
 import { parse } from '../../lib/validate.js';
 
 // No 0/O/1/I/L, so codes survive being read aloud or typed from a screenshot.
@@ -44,7 +46,22 @@ export async function pairingRoutes(app: FastifyInstance) {
         id: pair.id,
         createdAt: pair.createdAt,
         timezone: pair.timezone,
-        streak: { current: pair.streak?.current ?? 0, longest: pair.streak?.longest ?? 0 },
+        streak: {
+          current: pair.streak
+            ? displayStreak(
+                {
+                  current: pair.streak.current,
+                  longest: pair.streak.longest,
+                  lastCompletedDay: pair.streak.lastCompletedDay
+                    ? dateToDay(pair.streak.lastCompletedDay)
+                    : null,
+                },
+                localDay(pair.timezone),
+              )
+            : 0,
+          longest: pair.streak?.longest ?? 0,
+          lastCompletedDay: pair.streak?.lastCompletedDay ? dateToDay(pair.streak.lastCompletedDay) : null,
+        },
         partner: partner && {
           id: partner.id,
           displayName: partner.profile?.displayName ?? 'Partner',

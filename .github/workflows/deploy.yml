@@ -1,0 +1,89 @@
+name: Deploy
+
+# Runs only after CI passes on main: test → build → deploy.
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
+jobs:
+  backend:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploys (API runs migrations in its pre-deploy step)
+        env:
+          API_HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+          WORKER_HOOK: ${{ secrets.RENDER_WORKER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$API_HOOK" ]; then echo "Render hooks not configured; skipping"; exit 0; fi
+          curl -fsS -X POST "$API_HOOK"
+          curl -fsS -X POST "$WORKER_HOOK"
+
+  web:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      # Job-level so the deploy step's `if` can see whether it's configured.
+      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: >-
+          flutter build web --release
+          --dart-define=API_URL=${{ vars.API_URL }}
+          --dart-define=GOOGLE_WEB_CLIENT_ID=${{ vars.GOOGLE_WEB_CLIENT_ID }}
+          --dart-define=SENTRY_DSN=${{ vars.APP_SENTRY_DSN }}
+      - name: Deploy to Firebase Hosting
+        if: ${{ env.FIREBASE_SERVICE_ACCOUNT != '' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          entryPoint: app
+          channelId: live
+
+  android:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: >-
+          flutter build apk --release
+          --dart-define=API_URL=${{ vars.API_URL }}
+          --dart-define=GOOGLE_WEB_CLIENT_ID=${{ vars.GOOGLE_WEB_CLIENT_ID }}
+          --dart-define=SENTRY_DSN=${{ vars.APP_SENTRY_DSN }}
+      - name: Publish APK to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="build-${{ github.event.workflow_run.run_number }}"
+          gh release create "$TAG" build/app/outputs/flutter-apk/app-release.apk \
+            --title "Duo $TAG" --notes "Automated build from ${{ github.event.workflow_run.head_sha }}" --prerelease

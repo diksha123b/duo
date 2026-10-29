@@ -6,6 +6,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { Redis } from 'ioredis';
 import type { Config } from './config.js';
 import { AppError, unauthorized } from './lib/errors.js';
+import { reportError } from './lib/sentry.js';
 import type { GoogleVerifier } from './lib/google.js';
 import { TokenService, verifyAccessToken } from './lib/tokens.js';
 import { authRoutes } from './modules/auth/routes.js';
@@ -72,6 +73,7 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
       return reply.code(status).send({ error: { code: 'BAD_REQUEST', message: (err as Error).message } });
     }
     req.log.error(err);
+    reportError(err, { route: req.routeOptions.url, method: req.method, userId: req.userId || undefined });
     return reply.code(500).send({ error: { code: 'INTERNAL', message: 'Something went wrong' } });
   });
 

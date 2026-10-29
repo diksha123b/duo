@@ -4,6 +4,7 @@ import { Redis } from 'ioredis';
 import pino from 'pino';
 import { loadConfig } from './config.js';
 import { createPrisma } from './lib/prisma.js';
+import { initSentry } from './lib/sentry.js';
 import { createGameProvider } from './lib/providers.js';
 import {
   createQueue,
@@ -15,6 +16,7 @@ import {
 import { GameService } from './modules/games/service.js';
 
 const config = loadConfig();
+initSentry(config.SENTRY_DSN, config.NODE_ENV, 'worker');
 const log = pino({ name: 'worker' });
 const prisma = createPrisma(config.DATABASE_URL);
 const redis = new Redis(config.REDIS_URL);

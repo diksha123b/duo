@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
+import 'config.dart';
 import 'core/realtime.dart';
 import 'router.dart';
 
-void main() {
-  runApp(const ProviderScope(child: DuoApp()));
+Future<void> main() async {
+  const app = ProviderScope(child: DuoApp());
+  if (AppConfig.sentryDsn.isEmpty) return runApp(app);
+  await SentryFlutter.init(
+    (options) {
+      options.dsn = AppConfig.sentryDsn;
+      options.tracesSampleRate = 0.1;
+    },
+    appRunner: () => runApp(app),
+  );
 }
 
 class DuoApp extends ConsumerWidget {

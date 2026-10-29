@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { Queue, Worker, type ConnectionOptions, type Job } from 'bullmq';
 import type { FastifyBaseLogger } from 'fastify';
 import { addDays, dayToDate, localDay } from '../lib/time.js';
+import { reportError } from '../lib/sentry.js';
 import type { GameService } from '../modules/games/service.js';
 
 export const QUEUE = 'game-generation';
@@ -88,8 +89,11 @@ export function createWorker(
     },
     { connection, concurrency: 4 },
   );
-  worker.on('failed', (job, err) =>
-    deps.log.warn({ jobId: job?.id, attempt: job?.attemptsMade, err: err.message }, 'generation job failed'),
-  );
+  worker.on('failed', (job, err) => {
+    deps.log.warn({ jobId: job?.id, attempt: job?.attemptsMade, err: err.message }, 'generation job failed');
+    // Earlier attempts are expected to fail sometimes; only report exhausted jobs.
+    if (job && job.attemptsMade >= (job.opts.attempts ?? 1))
+      reportError(err, { jobId: job.id, data: job.data });
+  });
   return worker;
 }

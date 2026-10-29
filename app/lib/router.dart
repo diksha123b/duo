@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/auth_screens.dart';
 import 'features/game/game_screen.dart';
+import 'features/history/history_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/interests_screen.dart';
 import 'features/pairing/pairing_screen.dart';
@@ -20,7 +21,8 @@ String? redirectFor(AsyncValue auth, String location) {
   if (me == null) return const {'/login', '/register'}.contains(location) ? null : '/login';
   if (!me.onboarded) return location == '/onboarding' ? null : '/onboarding';
   if (!me.paired) return const {'/pair', '/interests'}.contains(location) ? null : '/pair';
-  return const {'/home', '/game', '/interests', '/history'}.contains(location) ? null : '/home';
+  const allowed = {'/home', '/game', '/interests', '/history'};
+  return allowed.contains(location) || location.startsWith('/history/') ? null : '/home';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -41,6 +43,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/pair', builder: (_, _) => const PairingScreen()),
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/game', builder: (_, _) => const GameScreen()),
+      GoRoute(path: '/history', builder: (_, _) => const HistoryScreen()),
+      GoRoute(
+        path: '/history/:id',
+        builder: (_, state) => HistoryDetailScreen(gameId: state.pathParameters['id']!),
+      ),
     ],
   );
 });

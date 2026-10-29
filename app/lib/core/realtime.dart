@@ -4,6 +4,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../config.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/game/game_controller.dart';
+import '../features/history/history_controller.dart';
 import '../features/pairing/pair_controller.dart';
 import 'api.dart';
 import 'models.dart';
@@ -70,7 +71,12 @@ class RealtimeController extends Notifier<RealtimeState> {
       })
       ..on('presence', (data) => state = state.copyWith(partnerPresence: _presence((data as Map)['state'])))
       ..on('game:partner_submitted', (data) => _game.markPartnerSubmitted((data as Map)['gameId'] as String))
-      ..on('game:revealed', (data) => _game.applyServer(Map<String, dynamic>.from((data as Map)['game'] as Map)))
+      ..on('game:revealed', (data) {
+        _game.applyServer(Map<String, dynamic>.from((data as Map)['game'] as Map));
+        // Completing today's game moves the streak and adds a history entry.
+        ref.invalidate(pairProvider);
+        ref.invalidate(historyProvider);
+      })
       ..on('pair:changed', (_) async {
         await ref.read(authProvider.notifier).reload();
         ref.invalidate(pairProvider);

@@ -1,0 +1,60 @@
+# Render Blueprint: API + worker + managed Postgres + Redis.
+# Deploys are triggered by the Deploy workflow after CI passes (autoDeploy off).
+# Background workers and pre-deploy commands need a paid Render plan.
+envVarGroups:
+  - name: duo-shared
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: LLM_MODEL
+        value: claude-opus-5-5
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+services:
+  - type: web
+    name: duo-api
+    runtime: docker
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    healthCheckPath: /health
+    preDeployCommand: npx prisma migrate deploy
+    envVars:
+      - fromGroup: duo-shared
+      - key: DATABASE_URL
+        fromDatabase: { name: duo-db, property: connectionString }
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: duo-redis, property: connectionString }
+      - key: GOOGLE_CLIENT_IDS
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: worker
+    name: duo-worker
+    runtime: docker
+    rootDir: server
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node dist/worker.js
+    autoDeploy: false
+    envVars:
+      - fromGroup: duo-shared
+      - key: DATABASE_URL
+        fromDatabase: { name: duo-db, property: connectionString }
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: duo-redis, property: connectionString }
+
+  - type: keyvalue
+    name: duo-redis
+    ipAllowList: []
+    # BullMQ needs keys never to be evicted.
+    maxmemoryPolicy: noeviction
+
+databases:
+  - name: duo-db
+    databaseName: duo

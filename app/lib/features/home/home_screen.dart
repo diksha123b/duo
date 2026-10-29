@@ -42,6 +42,7 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('duo', style: TextStyle(fontWeight: FontWeight.w800)),
         actions: [
+          IconButton(tooltip: 'History', icon: const Icon(Icons.history), onPressed: () => context.push('/history')),
           PopupMenuButton<String>(
             onSelected: (v) => switch (v) {
               'interests' => context.push('/interests'),

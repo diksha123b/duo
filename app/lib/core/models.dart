@@ -220,3 +220,33 @@ class Game {
 }
 
 enum Presence { online, playing, offline }
+
+class HistoryItem {
+  const HistoryItem({
+    required this.id,
+    required this.day,
+    required this.type,
+    required this.title,
+    required this.completed,
+    required this.meSubmitted,
+    this.summary,
+  });
+
+  final String id;
+  final String day;
+  final GameType type;
+  final String title;
+  final bool completed;
+  final bool meSubmitted;
+  final GameSummary? summary;
+
+  factory HistoryItem.fromJson(Map<String, dynamic> j) => HistoryItem(
+        id: j['id'] as String,
+        day: j['day'] as String,
+        type: GameType.parse(j['type'] as String),
+        title: j['title'] as String,
+        completed: j['completed'] as bool,
+        meSubmitted: j['meSubmitted'] as bool,
+        summary: GameSummary.fromJson(j['summary'] as Map<String, dynamic>?),
+      );
+}

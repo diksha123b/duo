@@ -11,5 +11,8 @@ class AppConfig {
   /// so the ID token's audience matches what the API verifies.
   static const googleWebClientId = String.fromEnvironment('GOOGLE_WEB_CLIENT_ID');
 
+  /// Crash reporting is off unless a DSN is provided.
+  static const sentryDsn = String.fromEnvironment('SENTRY_DSN');
+
   static bool get googleEnabled => googleWebClientId.isNotEmpty;
 }

@@ -25,6 +25,7 @@ const schema = z.object({
   // A player is waiting on on-demand generation; the background job can take longer.
   LLM_REQUEST_TIMEOUT_MS: z.coerce.number().default(15_000),
   LLM_JOB_TIMEOUT_MS: z.coerce.number().default(120_000),
+  SENTRY_DSN: z.string().url().optional(),
   CORS_ORIGINS: z
     .string()
     .default('*')
