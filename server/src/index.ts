@@ -3,6 +3,7 @@ import { buildApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createGoogleVerifier } from './lib/google.js';
 import { createPrisma } from './lib/prisma.js';
+import { attachRealtime } from './modules/realtime/socket.js';
 
 const config = loadConfig();
 const prisma = createPrisma(config.DATABASE_URL);
@@ -11,11 +12,16 @@ const app = await buildApp(
   { config, prisma, redis, verifyGoogle: createGoogleVerifier(config.GOOGLE_CLIENT_IDS) },
   { logger: true },
 );
+const pubClient = redis.duplicate();
+const subClient = redis.duplicate();
+attachRealtime(app, { pubClient, subClient });
 
 const shutdown = async () => {
   await app.close();
   await prisma.$disconnect();
   redis.disconnect();
+  pubClient.disconnect();
+  subClient.disconnect();
   process.exit(0);
 };
 process.on('SIGINT', shutdown);
