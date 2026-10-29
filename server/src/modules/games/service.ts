@@ -12,7 +12,13 @@ export interface ProvidedGame {
 
 // Where game content comes from. Day 3 uses the bank; Day 5 swaps in the LLM
 // with the bank as fallback, without touching anything below.
-export type GameProvider = (args: { pair: Pair; day: string; type: GameTypeName }) => Promise<ProvidedGame>;
+export type GameProvider = (args: {
+  pair: Pair;
+  day: string;
+  type: GameTypeName;
+  // False makes a provider throw instead of degrading, so a job can retry.
+  allowFallback?: boolean;
+}) => Promise<ProvidedGame>;
 
 export const bankProvider: GameProvider = async ({ pair, day, type }) => ({
   content: bankGame(type, `${pair.id}:${day}`),
@@ -52,13 +58,17 @@ export class GameService {
 
   // Returns the pair's game for `day`, creating it on first request. The
   // nightly job (Day 5) normally creates it ahead of time.
-  async ensureGame(pair: Pair, day: string): Promise<GameWithQuestions> {
+  async ensureGame(
+    pair: Pair,
+    day: string,
+    opts: { allowFallback?: boolean } = {},
+  ): Promise<GameWithQuestions> {
     const where = { pairId_day: { pairId: pair.id, day: dayToDate(day) } };
     const existing = await this.prisma.game.findUnique({ where, include: { questions: true } });
     if (existing) return existing;
 
     const type = typeForDay(day);
-    const { content, source } = await this.provider({ pair, day, type });
+    const { content, source } = await this.provider({ pair, day, type, allowFallback: opts.allowFallback });
     try {
       return await this.prisma.game.create({
         data: {

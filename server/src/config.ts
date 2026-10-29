@@ -18,6 +18,13 @@ const schema = z.object({
         .map((x) => x.trim())
         .filter(Boolean),
     ),
+  // AI generation is on when a key is set; otherwise every game comes from the bank.
+  ANTHROPIC_API_KEY: z.string().optional(),
+  LLM_MODEL: z.string().default('claude-opus-5-5'),
+  LLM_EFFORT: z.enum(['low', 'medium', 'high']).default('medium'),
+  // A player is waiting on on-demand generation; the background job can take longer.
+  LLM_REQUEST_TIMEOUT_MS: z.coerce.number().default(15_000),
+  LLM_JOB_TIMEOUT_MS: z.coerce.number().default(120_000),
   CORS_ORIGINS: z
     .string()
     .default('*')
