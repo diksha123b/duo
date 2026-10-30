@@ -81,7 +81,7 @@ class _InterestsScreenState extends ConsumerState<InterestsScreen> {
     final text = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.editing ? 'Your interests' : 'Hi $name 👋')),
+      appBar: AppBar(title: Text(widget.editing ? 'your interests' : 'hi ${name.toLowerCase()} 👋')),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -89,9 +89,9 @@ class _InterestsScreenState extends ConsumerState<InterestsScreen> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                Text('What are you into?', style: text.headlineSmall),
+                Text('what are you into?', style: text.headlineSmall),
                 const SizedBox(height: 4),
-                Text('Pick $minInterests–$maxInterests. Your daily games are built around both of your interests.'),
+                Text('pick $minInterests–$maxInterests. your daily games get built around both of you.'),
                 const SizedBox(height: 20),
                 Wrap(
                   spacing: 8,
@@ -106,16 +106,16 @@ class _InterestsScreenState extends ConsumerState<InterestsScreen> {
                   controller: _custom,
                   maxLength: 30,
                   decoration: InputDecoration(
-                    labelText: 'Add your own',
+                    labelText: 'add your own',
                     suffixIcon: IconButton(icon: const Icon(Icons.add), onPressed: _addCustom),
                   ),
                   onSubmitted: (_) => _addCustom(),
                 ),
                 const SizedBox(height: 12),
-                Text('${_selected.length} selected', style: text.bodySmall),
+                Text('${_selected.length} picked', style: text.bodySmall),
                 const SizedBox(height: 12),
                 BusyButton(
-                  label: widget.editing ? 'Save' : 'Continue',
+                  label: widget.editing ? 'save' : 'continue',
                   onPressed: _selected.length >= minInterests ? _save : null,
                 ),
               ],

@@ -18,8 +18,20 @@ class PairController extends AsyncNotifier<PairInfo?> {
     return pair == null ? null : PairInfo.fromJson(pair);
   }
 
-  Future<Invite> createInvite() async =>
-      Invite.fromJson((await _api.post('/invites'))['invite'] as Map<String, dynamic>);
+  Future<Invite> createInvite(Relationship relationship, {FamilyRole? iAm}) async {
+    final res = await _api.post('/invites', body: _relationshipBody(relationship, iAm));
+    return Invite.fromJson(res['invite'] as Map<String, dynamic>);
+  }
+
+  Future<void> setRelationship(Relationship relationship, {FamilyRole? iAm}) async {
+    await _api.patch('/pair', body: _relationshipBody(relationship, iAm));
+    ref.invalidateSelf();
+  }
+
+  static Map<String, dynamic> _relationshipBody(Relationship r, FamilyRole? iAm) => {
+    'relationship': r.wire,
+    if (r == Relationship.parentChild && iAm != null) 'iAm': iAm == FamilyRole.parent ? 'PARENT' : 'CHILD',
+  };
 
   Future<void> join(String code) async {
     await _api.post('/invites/join', body: {'code': code});

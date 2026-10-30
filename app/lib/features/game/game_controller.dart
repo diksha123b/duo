@@ -5,6 +5,16 @@ import '../../core/api.dart';
 import '../../core/models.dart';
 import '../auth/auth_controller.dart';
 
+/// The next six days' game types, refreshed with today's game.
+final lineupProvider = NotifierProvider<LineupNotifier, List<LineupDay>>(LineupNotifier.new);
+
+class LineupNotifier extends Notifier<List<LineupDay>> {
+  @override
+  List<LineupDay> build() => const [];
+
+  void set(List<LineupDay> days) => state = days;
+}
+
 final todayGameProvider = AsyncNotifierProvider<TodayGameController, Game>(TodayGameController.new);
 
 class TodayGameController extends AsyncNotifier<Game> {
@@ -20,7 +30,15 @@ class TodayGameController extends AsyncNotifier<Game> {
     return _fetch();
   }
 
-  Future<Game> _fetch() async => Game.fromJson((await _api.get('/games/today'))['game'] as Map<String, dynamic>);
+  Future<Game> _fetch() async {
+    final res = await _api.get('/games/today');
+    final lineup = (res['lineup'] as List? ?? const [])
+        .map((j) => LineupDay.fromJson(j as Map<String, dynamic>))
+        .toList();
+    // Deferred so it never updates another provider mid-build.
+    Future.microtask(() => ref.read(lineupProvider.notifier).set(lineup));
+    return Game.fromJson(res['game'] as Map<String, dynamic>);
+  }
 
   Future<void> refresh() async {
     state = AsyncData(await _fetch());

@@ -63,13 +63,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Submit answers'));
+    await tester.tap(find.text('lock it in'));
     // The waiting state spins forever, so pump frames instead of settling.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
     expect(game.submitted, {'q1': 1, 'q2': 0});
-    expect(find.text('Waiting for Partner'), findsOneWidget);
-    expect(find.text('playing now'), findsOneWidget);
+    expect(find.text('your turn’s done!'), findsOneWidget);
+    expect(find.text('Partner is playing now'), findsOneWidget);
   });
 
   testWidgets('shows an error with retry when loading fails', (tester) async {
@@ -87,7 +87,8 @@ void main() {
     );
     await tester.pumpWidget(app(FakeGame(() async => Game.fromJson(done))));
     await tester.pumpAndSettle();
-    expect(find.text('2 / 2 matched'), findsOneWidget);
+    expect(find.text('2 / 2'), findsOneWidget);
+    expect(find.text('perfectly in sync!'), findsOneWidget);
   });
 
   testWidgets('rank it submits a full ordering per question', (tester) async {
@@ -110,9 +111,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Samosa'), findsOneWidget);
 
-    await tester.tap(find.text('Lock in my order'));
+    await tester.tap(find.text('lock in my order'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Submit answers'));
+    await tester.tap(find.text('lock it in'));
     await tester.pump();
     expect(game.submittedRankings, {
       'q1': [0, 1, 2, 3],
@@ -138,10 +139,10 @@ void main() {
     await tester.pumpWidget(app(game));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Strongly agree'));
+    await tester.tap(find.text('absolutely'));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Submit answers'));
+    await tester.tap(find.text('lock it in'));
     await tester.pump();
     expect(game.submitted, {'q1': 4});
   });

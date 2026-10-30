@@ -16,7 +16,12 @@ class HistoryScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final history = ref.watch(historyProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('History')),
+      appBar: AppBar(
+        title: const Text('history'),
+        leading: (GoRouter.maybeOf(context)?.canPop() ?? true)
+            ? null
+            : IconButton(icon: const Icon(Icons.home_rounded), onPressed: () => context.go('/home')),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
@@ -24,10 +29,7 @@ class HistoryScreen extends ConsumerWidget {
             value: history,
             onRetry: () => ref.invalidate(historyProvider),
             isEmpty: (h) => h.items.isEmpty,
-            empty: const EmptyView(
-              icon: Icons.history,
-              message: 'No past games yet.\nPlay today and it will show up here tomorrow.',
-            ),
+            empty: const EmptyView(message: 'no past games yet.\nplay today and it shows up here tomorrow.'),
             data: (h) => RefreshIndicator(
               onRefresh: () => ref.refresh(historyProvider.future),
               child: NotificationListener<ScrollNotification>(
@@ -107,7 +109,12 @@ class HistoryDetailScreen extends ConsumerWidget {
     final game = ref.watch(gameByIdProvider(gameId));
     final partner = ref.watch(pairProvider).value?.partner.displayName ?? 'Partner';
     return Scaffold(
-      appBar: AppBar(title: Text(game.value?.day ?? 'Game')),
+      appBar: AppBar(
+        title: Text(game.value?.day ?? 'game'),
+        leading: (GoRouter.maybeOf(context)?.canPop() ?? true)
+            ? null
+            : IconButton(icon: const Icon(Icons.home_rounded), onPressed: () => context.go('/home')),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),

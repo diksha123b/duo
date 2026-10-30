@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../config.dart';
+import '../../ui/buddies.dart';
 import '../../ui/states.dart';
+import '../../ui/sticker.dart';
+import '../../ui/theme.dart';
 import 'auth_controller.dart';
 import 'google_button.dart';
 
@@ -40,8 +43,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return _AuthScaffold(
-      title: 'Welcome back',
-      subtitle: 'One small game a day, together.',
+      title: 'welcome back!',
+      subtitle: 'your duo is waiting. probably.',
       child: Form(
         key: _form,
         child: Column(
@@ -59,13 +62,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             if (_error != null) _ErrorText(_error!),
             const SizedBox(height: 20),
-            BusyButton(label: 'Sign in', onPressed: _submit),
+            BusyButton(label: 'sign in', onPressed: _submit),
             if (AppConfig.googleEnabled) ...[
               const _OrDivider(),
               GoogleButton(onError: (e) => setState(() => _error = e.toString())),
             ],
             const SizedBox(height: 12),
-            TextButton(onPressed: () => context.go('/register'), child: const Text('New here? Create an account')),
+            TextButton(onPressed: () => context.go('/register'), child: const Text('new here? make an account')),
           ],
         ),
       ),
@@ -110,8 +113,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return _AuthScaffold(
-      title: 'Create your account',
-      subtitle: 'Then pair up with your person.',
+      title: 'make an account',
+      subtitle: 'then invite your person. any person.',
       child: Form(
         key: _form,
         child: Column(
@@ -137,13 +140,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
             if (_error != null) _ErrorText(_error!),
             const SizedBox(height: 20),
-            BusyButton(label: 'Create account', onPressed: _submit),
+            BusyButton(label: 'let’s go', onPressed: _submit),
             if (AppConfig.googleEnabled) ...[
               const _OrDivider(),
               GoogleButton(onError: (e) => setState(() => _error = e.toString())),
             ],
             const SizedBox(height: 12),
-            TextButton(onPressed: () => context.go('/login'), child: const Text('Already have an account? Sign in')),
+            TextButton(onPressed: () => context.go('/login'), child: const Text('already have one? sign in')),
           ],
         ),
       ),
@@ -172,13 +175,41 @@ class _AuthScaffold extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text('duo', style: text.displaySmall?.copyWith(fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 24),
-                    Text(title, style: text.headlineSmall),
+                    const Center(child: Buddies(size: 110)),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: text.bodyMedium),
-                    const SizedBox(height: 24),
-                    child,
+                    Text('duo', style: text.displayMedium, textAlign: TextAlign.center),
+                    const SizedBox(height: 6),
+                    Text(
+                      'one tiny game a day for you and your person.',
+                      style: text.titleMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    const Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        Tag('💞 partners', color: DuoColors.bubblegum),
+                        Tag('👯 besties', color: DuoColors.grape),
+                        Tag('🧃 siblings', color: DuoColors.tangerine),
+                        Tag('🫶 parent & kid', color: DuoColors.sky),
+                      ],
+                    ),
+                    const SizedBox(height: 22),
+                    Sticker(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(title, style: text.headlineSmall),
+                          const SizedBox(height: 2),
+                          Text(subtitle, style: text.bodyMedium),
+                          const SizedBox(height: 18),
+                          child,
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),

@@ -39,6 +39,6 @@ void main() {
   testWidgets('shows an empty state before the first game', (tester) async {
     await tester.pumpWidget(app([]));
     await tester.pumpAndSettle();
-    expect(find.textContaining('No past games yet'), findsOneWidget);
+    expect(find.textContaining('no past games yet'), findsOneWidget);
   });
 }

@@ -52,13 +52,40 @@ class Partner {
   );
 }
 
+/// Who the two people are to each other.
+enum Relationship {
+  partners('PARTNERS'),
+  bestFriends('BEST_FRIENDS'),
+  friends('FRIENDS'),
+  siblings('SIBLINGS'),
+  parentChild('PARENT_CHILD');
+
+  const Relationship(this.wire);
+  final String wire;
+
+  static Relationship parse(String? s) => values.firstWhere((r) => r.wire == s, orElse: () => friends);
+}
+
+enum FamilyRole { parent, child }
+
 class PairInfo {
-  const PairInfo({required this.id, required this.partner, required this.currentStreak, required this.longestStreak});
+  const PairInfo({
+    required this.id,
+    required this.partner,
+    required this.currentStreak,
+    required this.longestStreak,
+    this.relationship = Relationship.friends,
+    this.myRole,
+  });
 
   final String id;
   final Partner partner;
   final int currentStreak;
   final int longestStreak;
+  final Relationship relationship;
+
+  /// Parent & child only.
+  final FamilyRole? myRole;
 
   factory PairInfo.fromJson(Map<String, dynamic> j) {
     final streak = j['streak'] as Map<String, dynamic>;
@@ -67,8 +94,24 @@ class PairInfo {
       partner: Partner.fromJson(j['partner'] as Map<String, dynamic>),
       currentStreak: streak['current'] as int,
       longestStreak: streak['longest'] as int,
+      relationship: Relationship.parse(j['relationship'] as String?),
+      myRole: switch (j['myRole']) {
+        'PARENT' => FamilyRole.parent,
+        'CHILD' => FamilyRole.child,
+        _ => null,
+      },
     );
   }
+}
+
+class LineupDay {
+  const LineupDay(this.day, this.type);
+
+  final DateTime day;
+  final GameType type;
+
+  factory LineupDay.fromJson(Map<String, dynamic> j) =>
+      LineupDay(DateTime.parse(j['day'] as String), GameType.parse(j['type'] as String));
 }
 
 class Invite {

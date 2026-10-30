@@ -6,7 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('validates the form before calling the API', (tester) async {
     await tester.pumpWidget(const ProviderScope(child: MaterialApp(home: LoginScreen())));
-    await tester.tap(find.text('Sign in'));
+    await tester.ensureVisible(find.text('sign in'));
+    await tester.tap(find.text('sign in'));
     await tester.pump();
 
     expect(find.text('Enter a valid email'), findsOneWidget);

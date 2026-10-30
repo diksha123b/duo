@@ -20,8 +20,9 @@ void main() {
     await tester.pumpWidget(wrap(ResultsView(game: game, partnerName: 'Ravi')));
     await tester.pumpAndSettle();
 
-    expect(find.text('1 / 2 matched'), findsOneWidget);
-    expect(find.text('💞'), findsOneWidget);
+    expect(find.text('1 / 2'), findsOneWidget);
+    expect(find.text('pretty in sync.'), findsOneWidget);
+    expect(find.text('✨ same!'), findsOneWidget);
     expect(find.text('Ravi'), findsNWidgets(2));
     expect(find.text('Beach'), findsOneWidget);
     expect(find.text('Mountains'), findsOneWidget);
@@ -39,7 +40,7 @@ void main() {
     );
     await tester.pumpWidget(wrap(ResultsView(game: game, partnerName: 'Ravi')));
     await tester.pumpAndSettle();
-    expect(find.text('You know Ravi better!'), findsOneWidget);
+    expect(find.text('you know Ravi better 😏'), findsOneWidget);
   });
 
   testWidgets('trivia shows the team score and the right answer', (tester) async {
@@ -65,9 +66,9 @@ void main() {
     );
     await tester.pumpWidget(wrap(ResultsView(game: game, partnerName: 'Ravi')));
     await tester.pumpAndSettle();
-    expect(find.text('Team score'), findsOneWidget);
+    expect(find.text('big brain duo.'), findsOneWidget);
     expect(find.text('2 / 2'), findsOneWidget);
-    expect(find.text('Answer: Mars'), findsOneWidget);
+    expect(find.text('answer: Mars'), findsOneWidget);
     expect(find.byIcon(Icons.check_rounded), findsNWidgets(2));
   });
 
@@ -95,7 +96,7 @@ void main() {
     await tester.pumpWidget(wrap(ResultsView(game: game, partnerName: 'Ravi')));
     await tester.pumpAndSettle();
     expect(find.text('75%'), findsOneWidget);
-    expect(find.text('You'), findsOneWidget);
+    expect(find.text('you'), findsOneWidget);
     expect(find.text('Ravi'), findsOneWidget);
   });
 
@@ -125,7 +126,7 @@ void main() {
     await tester.pumpWidget(wrap(ResultsView(game: game, partnerName: 'Ravi')));
     await tester.pumpAndSettle();
     expect(find.text('75%'), findsOneWidget);
-    expect(find.text('Similar tastes'), findsOneWidget);
+    expect(find.text('similar tastes.'), findsOneWidget);
     expect(find.text('1. Samosa'), findsOneWidget);
     expect(find.text('1. Popcorn'), findsOneWidget);
   });

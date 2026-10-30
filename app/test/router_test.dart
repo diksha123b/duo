@@ -9,9 +9,17 @@ void main() {
   const AsyncValue<Me?> loading = AsyncLoading();
   const AsyncValue<Me?> signedOut = AsyncData(null);
 
-  test('shows the splash while the session is restoring', () {
-    expect(redirectFor(loading, '/home'), '/splash');
+  test('shows the splash while the session is restoring, remembering the page', () {
+    expect(redirectFor(loading, '/game'), '/splash?from=%2Fgame');
     expect(redirectFor(loading, '/splash'), isNull);
+  });
+
+  test('returns to the remembered page once the session is back', () {
+    expect(redirectFor(AsyncData(me()), '/splash', from: '/game'), '/game');
+    expect(redirectFor(AsyncData(me()), '/splash', from: '/history/abc'), '/history/abc');
+    // But never somewhere the user isn't allowed yet.
+    expect(redirectFor(AsyncData(me(paired: false)), '/splash', from: '/game'), '/pair');
+    expect(redirectFor(signedOut, '/splash', from: '/game'), '/login');
   });
 
   test('signed-out users can only reach login and register', () {
@@ -28,6 +36,6 @@ void main() {
 
   test('a failed restore stays on the splash to offer a retry', () {
     final failed = AsyncValue<Me?>.error(Exception('offline'), StackTrace.empty);
-    expect(redirectFor(failed, '/home'), '/splash');
+    expect(redirectFor(failed, '/home'), '/splash?from=%2Fhome');
   });
 }

@@ -4,28 +4,17 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/models.dart';
 import '../../core/realtime.dart';
+import '../../ui/buddies.dart';
 import '../../ui/game_style.dart';
+import '../../ui/relationship_style.dart';
 import '../../ui/states.dart';
+import '../../ui/sticker.dart';
 import '../../ui/theme.dart';
 import '../auth/auth_controller.dart';
 import '../game/game_controller.dart';
 import '../pairing/pair_controller.dart';
 
-const _weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const _months = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-];
+const _weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -34,11 +23,11 @@ class HomeScreen extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Unpair?'),
-        content: const Text('Your streak ends and you will both need a new invite code to pair again.'),
+        title: const Text('unpair?'),
+        content: const Text('your streak ends and you’ll both need a new invite code to pair again.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Unpair')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('unpair')),
         ],
       ),
     );
@@ -54,10 +43,9 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final pair = ref.watch(pairProvider);
     final game = ref.watch(todayGameProvider);
+    final lineup = ref.watch(lineupProvider);
     final realtime = ref.watch(realtimeProvider);
     final me = ref.watch(authProvider).value;
-    final now = DateTime.now();
-    final text = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(
@@ -71,14 +59,16 @@ class HomeScreen extends ConsumerWidget {
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_horiz_rounded),
             onSelected: (v) => switch (v) {
+              'who' => _pickRelationship(context, ref, pair.value),
               'interests' => context.push('/interests'),
               'unpair' => _confirmUnpair(context, ref),
               _ => ref.read(authProvider.notifier).logout(),
             },
             itemBuilder: (_) => const [
-              PopupMenuItem(value: 'interests', child: Text('Edit interests')),
-              PopupMenuItem(value: 'unpair', child: Text('Unpair')),
-              PopupMenuItem(value: 'logout', child: Text('Sign out')),
+              PopupMenuItem(value: 'who', child: Text('change who we are')),
+              PopupMenuItem(value: 'interests', child: Text('edit my interests')),
+              PopupMenuItem(value: 'unpair', child: Text('unpair')),
+              PopupMenuItem(value: 'logout', child: Text('sign out')),
             ],
           ),
         ],
@@ -92,44 +82,94 @@ class HomeScreen extends ConsumerWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
               children: [
                 if (!realtime.connected) const _OfflineBanner(),
-                Text(
-                  '${_weekdays[now.weekday - 1]}, ${now.day} ${_months[now.month - 1]}'.toUpperCase(),
-                  style: text.labelMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 16),
                 AsyncView(
                   value: pair,
                   onRetry: () => ref.invalidate(pairProvider),
                   isEmpty: (p) => p == null,
                   data: (p) => FadeIn(
-                    child: _Couple(
-                      myName: me?.profile.displayName ?? 'You',
+                    child: _Hero(
+                      myName: me?.profile.displayName ?? 'you',
                       pair: p!,
                       presence: realtime.partnerPresence,
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 22),
                 SizedBox(
-                  height: 260,
+                  height: 270,
                   child: AsyncView(
                     value: game,
                     onRetry: () => ref.invalidate(todayGameProvider),
                     data: (g) => FadeIn(
-                      delay: const Duration(milliseconds: 150),
-                      child: _TodayCard(game: g, partnerName: pair.value?.partner.displayName ?? 'your partner'),
+                      delay: const Duration(milliseconds: 120),
+                      child: _TodayCard(game: g, otherName: pair.value?.partner.displayName ?? 'them'),
                     ),
                   ),
                 ),
+                if (lineup.isNotEmpty) ...[
+                  const SizedBox(height: 26),
+                  FadeIn(
+                    delay: const Duration(milliseconds: 240),
+                    child: _Lineup(days: lineup),
+                  ),
+                ],
+                const SizedBox(height: 26),
+                const FadeIn(delay: Duration(milliseconds: 360), child: _GameShelf()),
               ],
             ),
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _pickRelationship(BuildContext context, WidgetRef ref, PairInfo? pair) async {
+    if (pair == null) return;
+    final choice = await showModalBottomSheet<(Relationship, FamilyRole?)>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('${pair.partner.displayName} is my…', style: Theme.of(ctx).textTheme.headlineSmall),
+              const SizedBox(height: 12),
+              for (final r in Relationship.values)
+                if (r == Relationship.parentChild) ...[
+                  ListTile(
+                    leading: const Text('👩', style: TextStyle(fontSize: 22)),
+                    title: const Text('kid (I’m the parent)'),
+                    onTap: () => Navigator.pop(ctx, (r, FamilyRole.parent)),
+                  ),
+                  ListTile(
+                    leading: const Text('🧒', style: TextStyle(fontSize: 22)),
+                    title: const Text('parent (I’m the kid)'),
+                    onTap: () => Navigator.pop(ctx, (r, FamilyRole.child)),
+                  ),
+                ] else
+                  ListTile(
+                    leading: Text(RelationshipStyle.of(r).emoji, style: const TextStyle(fontSize: 22)),
+                    title: Text(RelationshipStyle.of(r).label),
+                    trailing: pair.relationship == r ? const Icon(Icons.check_rounded) : null,
+                    onTap: () => Navigator.pop(ctx, (r, null)),
+                  ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (choice == null) return;
+    try {
+      await ref.read(pairProvider.notifier).setRelationship(choice.$1, iAm: choice.$2);
+    } catch (e) {
+      if (context.mounted) showError(context, e);
+    }
   }
 }
 
@@ -138,20 +178,20 @@ class _OfflineBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(16),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.wifi_off_rounded, size: 18),
-              SizedBox(width: 10),
-              Expanded(child: Text('Reconnecting… live updates are paused')),
-            ],
-          ),
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 12),
+      child: Sticker(
+        color: DuoColors.sunflower,
+        depth: 3,
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.wifi_off_rounded, size: 18, color: DuoColors.ink),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text('reconnecting… live updates paused', style: TextStyle(color: DuoColors.ink)),
+            ),
+          ],
         ),
       ),
     );
@@ -159,58 +199,41 @@ class _OfflineBanner extends StatelessWidget {
 }
 
 class PresenceDot extends StatelessWidget {
-  const PresenceDot({super.key, required this.presence});
+  const PresenceDot({super.key, required this.presence, this.name});
 
   final Presence presence;
+
+  /// When given, reads as a sentence: "Ravi is playing now".
+  final String? name;
 
   @override
   Widget build(BuildContext context) {
     final (color, label) = switch (presence) {
-      Presence.playing => (const Color(0xFFE0A458), 'playing now'),
-      Presence.online => (const Color(0xFF7FB08C), 'online'),
+      Presence.playing => (DuoColors.tangerine, 'playing now'),
+      Presence.online => (DuoColors.mint, 'online'),
       Presence.offline => (Theme.of(context).colorScheme.outline, 'offline'),
     };
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 9,
-          height: 9,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          width: 11,
+          height: 11,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(color: DuoColors.line(context), width: 1.5),
+          ),
         ),
         const SizedBox(width: 6),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
+        Text(name == null ? label : '$name is $label', style: Theme.of(context).textTheme.bodyMedium),
       ],
     );
   }
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar({required this.name, this.url, required this.color});
-
-  final String name;
-  final String? url;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
-      child: CircleAvatar(
-        radius: 28,
-        backgroundColor: color,
-        backgroundImage: url != null ? NetworkImage(url!) : null,
-        child: url == null
-            ? Text(name.characters.first.toUpperCase(), style: Theme.of(context).textTheme.titleLarge)
-            : null,
-      ),
-    );
-  }
-}
-
-class _Couple extends StatelessWidget {
-  const _Couple({required this.myName, required this.pair, required this.presence});
+class _Hero extends StatelessWidget {
+  const _Hero({required this.myName, required this.pair, required this.presence});
 
   final String myName;
   final PairInfo pair;
@@ -219,68 +242,244 @@ class _Couple extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
+    final rel = RelationshipStyle.of(pair.relationship);
     final partner = pair.partner;
     final streak = pair.currentStreak;
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            SizedBox(
-              width: 108,
-              height: 62,
-              child: Stack(
-                children: [
-                  _Avatar(name: myName, color: const Color(0xFFF7DFE3)),
-                  Positioned(
-                    left: 44,
-                    child: _Avatar(name: partner.displayName, url: partner.avatarUrl, color: const Color(0xFFEDE6F7)),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('You & ${partner.displayName}', style: text.headlineSmall),
-                  const SizedBox(height: 2),
-                  PresenceDot(presence: presence),
+                  Tag('${rel.emoji} ${rel.label}', color: rel.left),
+                  const SizedBox(height: 10),
+                  Text('${myName.toLowerCase()} & ${partner.displayName.toLowerCase()}', style: text.headlineLarge),
+                  const SizedBox(height: 4),
+                  Text(rel.tagline, style: text.bodyLarge),
+                  const SizedBox(height: 8),
+                  PresenceDot(presence: presence, name: partner.displayName),
                 ],
               ),
+            ),
+            Buddies(
+              size: 90,
+              mood: presence == Presence.offline ? BuddyMood.sleepy : BuddyMood.happy,
+              left: rel.left,
+              right: rel.right,
             ),
           ],
         ),
         const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainer,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Row(
-            children: [
-              Text(streak > 0 ? '🔥' : '🌱', style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  streak > 0
-                      ? '$streak ${streak == 1 ? 'day' : 'days'} in a row'
-                      : 'Play together today to start a streak',
-                  style: text.titleMedium,
+        Row(
+          children: [
+            Expanded(
+              child: Sticker(
+                color: streak > 0 ? DuoColors.sunflower : null,
+                tilt: -1.5,
+                depth: 4,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Text(streak > 0 ? '🔥' : '🌱', style: const TextStyle(fontSize: 26)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            streak > 0 ? '$streak day streak' : 'no streak yet',
+                            style: text.titleMedium?.copyWith(color: streak > 0 ? DuoColors.ink : null),
+                          ),
+                          Text(
+                            streak > 0
+                                ? (pair.longestStreak > streak ? 'best ever: ${pair.longestStreak}' : 'your best yet!')
+                                : 'play today to start one',
+                            style: text.bodySmall?.copyWith(color: streak > 0 ? DuoColors.ink : null),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              if (pair.longestStreak > streak) Text('best ${pair.longestStreak}', style: text.bodySmall),
+            ),
+            if (partner.interests.isNotEmpty) ...[
+              const SizedBox(width: 10),
+              Expanded(
+                child: Sticker(
+                  tilt: 1.2,
+                  depth: 4,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${partner.displayName.toLowerCase()} is into', style: text.bodySmall),
+                      Text(
+                        partner.interests.take(3).join(', '),
+                        style: text.titleMedium,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TodayCard extends StatelessWidget {
+  const _TodayCard({required this.game, required this.otherName});
+
+  final Game game;
+  final String otherName;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme.apply(bodyColor: DuoColors.ink, displayColor: DuoColors.ink);
+    final style = GameStyle.of(game.type);
+    final (status, action) = switch (game) {
+      Game(completed: true) => ('the results are in 👀', 'see results'),
+      Game(meSubmitted: true) => ('waiting on $otherName…', 'peek at mine'),
+      Game(partnerSubmitted: true) => ('$otherName already played. your move!', 'play now'),
+      _ => ('${game.questions.length} questions\n~2 minutes', 'play now'),
+    };
+    return Sticker(
+      color: style.tint(context),
+      pattern: style.pattern,
+      depth: 6,
+      padding: const EdgeInsets.all(22),
+      onTap: () => context.push('/game'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Tag("today's game", color: Colors.white),
+              const Spacer(),
+              Transform.rotate(angle: 0.18, child: Text(style.emoji, style: const TextStyle(fontSize: 44))),
             ],
           ),
-        ),
-        if (partner.interests.isNotEmpty) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
+          Text(game.title.toLowerCase(), style: text.headlineMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 2),
+          // Bank games are titled after their type, so don't say it twice.
           Text(
-            '${partner.displayName} is into ${partner.interests.take(4).join(', ')}',
-            style: text.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            game.title.toLowerCase() == style.name ? style.tagline : '${style.name} · ${style.tagline}',
+            style: text.bodyMedium,
+            maxLines: 2,
+          ),
+          const Spacer(),
+          Row(
+            children: [
+              Expanded(
+                child: Text(status, style: text.bodyLarge?.copyWith(fontWeight: FontWeight.w700)),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 140,
+                child: StickerButton(label: action, color: Colors.white, onPressed: () async => context.push('/game')),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Lineup extends StatelessWidget {
+  const _Lineup({required this.days});
+
+  final List<LineupDay> days;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('coming up this week', style: text.titleLarge),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 112,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: days.length,
+            clipBehavior: Clip.none,
+            separatorBuilder: (_, _) => const SizedBox(width: 6),
+            itemBuilder: (context, i) {
+              final d = days[i];
+              final style = GameStyle.of(d.type);
+              return SizedBox(
+                width: 104,
+                child: Sticker(
+                  color: style.tint(context),
+                  depth: 3,
+                  tilt: i.isEven ? -1.5 : 1.5,
+                  padding: const EdgeInsets.all(10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        i == 0 ? 'tomorrow' : _weekdays[d.day.weekday - 1],
+                        style: text.labelMedium?.copyWith(color: DuoColors.ink),
+                      ),
+                      const Spacer(),
+                      Text(style.emoji, style: const TextStyle(fontSize: 24)),
+                      Text(
+                        style.name,
+                        style: text.labelLarge?.copyWith(color: DuoColors.ink, height: 1.1),
+                        maxLines: 2,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Every game, grouped like a little arcade shelf. Tapping one explains it.
+class _GameShelf extends StatelessWidget {
+  const _GameShelf();
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('the games', style: text.titleLarge),
+        Text('a new one lands every day. you never know which.', style: text.bodyMedium),
+        const SizedBox(height: 12),
+        for (final cat in GameCategory.values) ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 8),
+            child: Text('${cat.label} · ${cat.blurb}', style: text.labelMedium),
+          ),
+          // Same-height cards within a row.
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (final type in GameType.values.where((t) => GameStyle.of(t).category == cat))
+                  Expanded(child: _ShelfCard(type: type)),
+              ],
+            ),
           ),
         ],
       ],
@@ -288,54 +487,50 @@ class _Couple extends StatelessWidget {
   }
 }
 
-class _TodayCard extends StatelessWidget {
-  const _TodayCard({required this.game, required this.partnerName});
+class _ShelfCard extends StatelessWidget {
+  const _ShelfCard({required this.type});
 
-  final Game game;
-  final String partnerName;
+  final GameType type;
 
   @override
   Widget build(BuildContext context) {
+    final style = GameStyle.of(type);
     final text = Theme.of(context).textTheme;
-    final style = GameStyle.of(game.type);
-    final (status, action) = switch (game) {
-      Game(completed: true) => ('Your results are in', 'See results'),
-      Game(meSubmitted: true) => ('Waiting for $partnerName to play', 'View your answers'),
-      Game(partnerSubmitted: true) => ('$partnerName already played. Your turn!', 'Play now'),
-      _ => ('${game.questions.length} questions · about 2 minutes', 'Play now'),
-    };
-    return Material(
-      color: style.tint(context),
-      borderRadius: BorderRadius.circular(28),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(28),
-        onTap: () => context.push('/game'),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return Padding(
+      padding: const EdgeInsets.only(right: 6, bottom: 6),
+      child: Sticker(
+        color: style.tint(context),
+        pattern: style.pattern,
+        depth: 4,
+        padding: const EdgeInsets.all(14),
+        onTap: () => showModalBottomSheet<void>(
+          context: context,
+          showDragHandle: true,
+          builder: (ctx) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text("TODAY'S GAME", style: text.labelMedium),
-                  const Spacer(),
-                  Text(style.emoji, style: const TextStyle(fontSize: 34)),
+                  Text(style.emoji, style: const TextStyle(fontSize: 48)),
+                  Text(style.name, style: Theme.of(ctx).textTheme.headlineMedium),
+                  const SizedBox(height: 4),
+                  Text(style.tagline, style: Theme.of(ctx).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  Text(style.howTo, textAlign: TextAlign.center),
                 ],
               ),
-              const SizedBox(height: 4),
-              Text(game.title, style: text.headlineMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              Text(style.name, style: text.titleMedium),
-              const Spacer(),
-              Row(
-                children: [
-                  Expanded(child: Text(status)),
-                  const SizedBox(width: 12),
-                  FilledButton(onPressed: () => context.push('/game'), child: Text(action)),
-                ],
-              ),
-            ],
+            ),
           ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(style.emoji, style: const TextStyle(fontSize: 28)),
+            const SizedBox(height: 6),
+            Text(style.name, style: text.titleMedium?.copyWith(color: DuoColors.ink)),
+            Text(style.tagline, style: text.bodySmall?.copyWith(color: DuoColors.ink), maxLines: 2),
+          ],
         ),
       ),
     );

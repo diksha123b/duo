@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/models.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/auth_screens.dart';
 import 'features/game/game_screen.dart';
@@ -13,11 +14,23 @@ import 'ui/states.dart';
 
 /// Where a user belongs given their auth state. Routes not listed for a
 /// state redirect to its home; this is the only navigation guard.
-String? redirectFor(AsyncValue auth, String location) {
-  if (auth.isLoading && !auth.hasValue) return location == '/splash' ? null : '/splash';
-  if (auth.hasError && !auth.hasValue) return location == '/splash' ? null : '/splash';
+///
+/// While the session restores, users wait on the splash with the page they
+/// asked for in `from`, so a refresh on /game comes back to /game.
+String? redirectFor(AsyncValue auth, String location, {String? from}) {
+  final restoring = (auth.isLoading || auth.hasError) && !auth.hasValue;
+  if (restoring) {
+    if (location == '/splash') return null;
+    return Uri(path: '/splash', queryParameters: {'from': location}).toString();
+  }
 
-  final me = auth.value;
+  final wanted = location == '/splash' && from != null ? from : location;
+  final target = _destination(auth.value as Me?, wanted);
+  if (target != null) return target;
+  return wanted == location ? null : wanted;
+}
+
+String? _destination(Me? me, String location) {
   if (me == null) return const {'/login', '/register'}.contains(location) ? null : '/login';
   if (!me.onboarded) return location == '/onboarding' ? null : '/onboarding';
   if (!me.paired) return const {'/pair', '/interests'}.contains(location) ? null : '/pair';
@@ -33,7 +46,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/splash',
     refreshListenable: refresh,
-    redirect: (context, state) => redirectFor(ref.read(authProvider), state.matchedLocation),
+    redirect: (context, state) =>
+        redirectFor(ref.read(authProvider), state.matchedLocation, from: state.uri.queryParameters['from']),
     routes: [
       GoRoute(path: '/splash', builder: (_, _) => const _Splash()),
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),

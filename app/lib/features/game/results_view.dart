@@ -1,116 +1,147 @@
 import 'package:flutter/material.dart';
 
 import '../../core/models.dart';
+import '../../ui/buddies.dart';
 import '../../ui/game_style.dart';
+import '../../ui/sticker.dart';
 import '../../ui/theme.dart';
 
-/// Side-by-side comparison of both partners' answers, used by the live reveal
-/// and by history. The summary arrives first, then each answer fades in.
+/// Side-by-side comparison of both people's answers, used by the live reveal
+/// and by history. The summary lands first, then each answer drops in.
+/// With [celebrate], a good result sets off an emoji burst.
 class ResultsView extends StatelessWidget {
-  const ResultsView({super.key, required this.game, required this.partnerName});
+  const ResultsView({super.key, required this.game, required this.partnerName, this.celebrate = false});
 
   final Game game;
   final String partnerName;
+  final bool celebrate;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.all(20),
+    final verdict = _Verdict.of(game.summary, partnerName);
+    return Stack(
       children: [
-        FadeIn(
-          child: _SummaryHeader(game: game, partnerName: partnerName),
+        ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            FadeIn(
+              child: _SummaryHeader(game: game, verdict: verdict),
+            ),
+            const SizedBox(height: 18),
+            for (final (i, q) in game.questions.indexed)
+              FadeIn(
+                delay: Duration(milliseconds: 450 + 130 * i),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _AnswerCard(type: game.type, question: q, partnerName: partnerName),
+                ),
+              ),
+          ],
         ),
-        const SizedBox(height: 20),
-        for (final (i, q) in game.questions.indexed) ...[
-          FadeIn(
-            delay: Duration(milliseconds: 400 + 120 * i),
-            child: _AnswerCard(type: game.type, question: q, partnerName: partnerName),
-          ),
-          const SizedBox(height: 12),
-        ],
+        if (celebrate && verdict.great)
+          Positioned.fill(child: EmojiBurst(emojis: [GameStyle.of(game.type).emoji, '✨', '🎉', '💛'])),
       ],
     );
   }
 }
 
+/// (big number, suffix, headline, detail, great?)
+class _Verdict {
+  const _Verdict(this.value, this.suffix, this.headline, this.detail, {this.great = false});
+
+  final int? value;
+  final String suffix;
+  final String headline;
+  final String detail;
+  final bool great;
+
+  static _Verdict of(GameSummary? s, String partner) => switch (s) {
+    MatchSummary(:final matches, :final total) => _Verdict(
+      matches,
+      ' / $total',
+      matches == total
+          ? 'perfectly in sync!'
+          : matches * 2 >= total
+          ? 'pretty in sync.'
+          : 'opposites attract?',
+      'times you picked the same thing',
+      great: matches * 2 >= total,
+    ),
+    KnowsSummary(:final myCorrect, :final partnerCorrect, :final aboutPartner, :final aboutMe) => _Verdict(
+      null,
+      '',
+      myCorrect == partnerCorrect
+          ? "it's a tie!"
+          : myCorrect > partnerCorrect
+          ? 'you know $partner better 😏'
+          : '$partner knows you better 👀',
+      'you guessed $myCorrect/$aboutPartner · $partner guessed $partnerCorrect/$aboutMe',
+      great: myCorrect + partnerCorrect >= (aboutMe + aboutPartner) / 2,
+    ),
+    TriviaSummary(:final myScore, :final partnerScore, :final total) => _Verdict(
+      myScore + partnerScore,
+      ' / ${total * 2}',
+      myScore + partnerScore >= total * 1.5 ? 'big brain duo.' : 'team effort. mostly.',
+      'you $myScore · $partner $partnerScore',
+      great: myScore + partnerScore >= total,
+    ),
+    ClosenessSummary(:final percent, :final exact, :final total) => _Verdict(
+      percent,
+      '%',
+      percent >= 80
+          ? 'basically the same brain.'
+          : percent >= 50
+          ? 'mostly on the same page.'
+          : 'spicy disagreement.',
+      'exactly the same on $exact of $total',
+      great: percent >= 60,
+    ),
+    RankSummary(:final percent, :final sameTop, :final total) => _Verdict(
+      percent,
+      '%',
+      percent >= 80
+          ? 'practically the same list.'
+          : percent >= 50
+          ? 'similar tastes.'
+          : 'very different priorities.',
+      'same #1 on $sameTop of $total',
+      great: percent >= 60,
+    ),
+    null => const _Verdict(null, '', 'results', ''),
+  };
+}
+
 class _SummaryHeader extends StatelessWidget {
-  const _SummaryHeader({required this.game, required this.partnerName});
+  const _SummaryHeader({required this.game, required this.verdict});
 
   final Game game;
-  final String partnerName;
+  final _Verdict verdict;
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final style = GameStyle.of(game.type);
+    final ink = text.apply(bodyColor: DuoColors.ink, displayColor: DuoColors.ink);
 
-    // (big number, suffix, headline, detail)
-    final (int? value, String suffix, String headline, String detail) = switch (game.summary) {
-      MatchSummary(:final matches, :final total) => (
-        matches,
-        ' / $total matched',
-        matches == total
-            ? 'Perfectly in sync 💞'
-            : matches * 2 >= total
-            ? 'Pretty in sync'
-            : 'Opposites attract',
-        '',
-      ),
-      KnowsSummary(:final myCorrect, :final partnerCorrect, :final aboutPartner, :final aboutMe) => (
-        null,
-        '',
-        myCorrect == partnerCorrect
-            ? "It's a tie!"
-            : myCorrect > partnerCorrect
-            ? 'You know $partnerName better!'
-            : '$partnerName knows you better!',
-        'You guessed $myCorrect/$aboutPartner · $partnerName guessed $partnerCorrect/$aboutMe',
-      ),
-      TriviaSummary(:final myScore, :final partnerScore, :final total) => (
-        myScore + partnerScore,
-        ' / ${total * 2}',
-        'Team score',
-        'You $myScore · $partnerName $partnerScore',
-      ),
-      ClosenessSummary(:final percent, :final exact, :final total) => (
-        percent,
-        '%',
-        percent >= 80
-            ? 'So in tune 💞'
-            : percent >= 50
-            ? 'Mostly on the same page'
-            : 'Agree to disagree',
-        'Exactly the same on $exact of $total',
-      ),
-      RankSummary(:final percent, :final sameTop, :final total) => (
-        percent,
-        '%',
-        percent >= 80
-            ? 'Practically the same list'
-            : percent >= 50
-            ? 'Similar tastes'
-            : 'Very different priorities',
-        'Same favourite on $sameTop of $total',
-      ),
-      null => (null, '', 'Results', ''),
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      decoration: BoxDecoration(color: style.tint(context), borderRadius: BorderRadius.circular(28)),
+    return Sticker(
+      color: style.tint(context),
+      pattern: style.pattern,
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
       child: Column(
         children: [
-          Text(style.emoji, style: const TextStyle(fontSize: 36)),
-          const SizedBox(height: 8),
-          if (value != null)
+          Buddies(size: 80, mood: verdict.great ? BuddyMood.celebrating : BuddyMood.happy),
+          if (verdict.value != null)
             TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: value.toDouble()),
-              duration: const Duration(milliseconds: 900),
+              tween: Tween(begin: 0, end: verdict.value!.toDouble()),
+              duration: const Duration(milliseconds: 1000),
               curve: Curves.easeOutCubic,
-              builder: (context, v, _) => Text('${v.round()}$suffix', style: text.displaySmall),
+              builder: (context, v, _) => Text('${v.round()}${verdict.suffix}', style: ink.displayMedium),
             ),
-          Text(headline, style: text.headlineSmall, textAlign: TextAlign.center),
-          if (detail.isNotEmpty) ...[const SizedBox(height: 6), Text(detail, textAlign: TextAlign.center)],
+          Text(verdict.headline, style: ink.headlineSmall, textAlign: TextAlign.center),
+          if (verdict.detail.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(verdict.detail, textAlign: TextAlign.center, style: ink.bodyMedium),
+          ],
         ],
       ),
     );
@@ -134,32 +165,33 @@ class _AnswerCard extends StatelessWidget {
       _ => false,
     };
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(q.prompt, style: type == GameType.emojiDecode ? text.headlineSmall : text.titleMedium),
+    return Sticker(
+      depth: 3,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  type == GameType.wouldYouRather ? q.options.join('  or  ') : q.prompt,
+                  style: type == GameType.emojiDecode ? text.headlineSmall : text.titleMedium,
                 ),
-                if (matched) const Text('💞'),
-              ],
-            ),
-            if (type == GameType.wouldYouRather) Text(q.options.join('  or  '), style: text.bodySmall),
-            if (type == GameType.whoKnowsWhom)
-              Text(q.about == About.me ? 'About you' : 'About $partnerName', style: text.bodySmall),
-            const SizedBox(height: 12),
-            switch (type) {
-              GameType.rankIt => _Rankings(question: q, partnerName: partnerName),
-              GameType.agreeOMeter => _AgreeCompare(question: q, partnerName: partnerName),
-              _ => _ChoicePair(type: type, question: q, partnerName: partnerName),
-            },
-          ],
-        ),
+              ),
+              if (matched) const Tag('✨ same!', color: DuoColors.sunflower),
+            ],
+          ),
+          if (type == GameType.whoKnowsWhom)
+            Text(q.about == About.me ? 'about you' : 'about $partnerName', style: text.bodySmall),
+          const SizedBox(height: 12),
+          switch (type) {
+            GameType.rankIt => _Rankings(question: q, partnerName: partnerName),
+            GameType.agreeOMeter => _AgreeCompare(question: q, partnerName: partnerName),
+            _ => _ChoicePair(type: type, question: q, partnerName: partnerName),
+          },
+        ],
       ),
     );
   }
@@ -195,7 +227,7 @@ class _ChoicePair extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: _Answer(who: 'You', answer: opt(q.myChoice), good: myGood),
+              child: _Answer(who: 'you', answer: opt(q.myChoice), good: myGood),
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -205,7 +237,7 @@ class _ChoicePair extends StatelessWidget {
         ),
         if (hasKey && q.correctOption != null) ...[
           const SizedBox(height: 8),
-          Text('Answer: ${opt(q.correctOption)}', style: Theme.of(context).textTheme.bodySmall),
+          Text('answer: ${opt(q.correctOption)}', style: Theme.of(context).textTheme.bodySmall),
         ],
       ],
     );
@@ -221,25 +253,30 @@ class _Answer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    const green = Color(0xFF6E9E7B);
+    final fill = switch (good) {
+      true => DuoColors.mint,
+      false => DuoColors.bubblegum.withValues(alpha: 0.6),
+      null => Theme.of(context).colorScheme.surfaceContainer,
+    };
+    final onFill = good == null ? null : DuoColors.ink;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
-        border: good == null ? null : Border.all(color: good! ? green : scheme.error, width: 1.5),
+        color: fill,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: DuoColors.line(context), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(who, style: Theme.of(context).textTheme.labelSmall),
+          Text(who, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: onFill)),
           const SizedBox(height: 4),
           Row(
             children: [
-              Expanded(child: Text(answer, style: Theme.of(context).textTheme.bodyLarge)),
-              if (good != null)
-                Icon(good! ? Icons.check_rounded : Icons.close_rounded, size: 18, color: good! ? green : scheme.error),
+              Expanded(
+                child: Text(answer, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: onFill)),
+              ),
+              if (good != null) Icon(good! ? Icons.check_rounded : Icons.close_rounded, size: 18, color: DuoColors.ink),
             ],
           ),
         ],
@@ -262,7 +299,8 @@ class _Rankings extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainer,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: DuoColors.line(context), width: 1.5),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,7 +316,7 @@ class _Rankings extends StatelessWidget {
                     // Bold where both put the item in the same place.
                     fontWeight:
                         q.myRanking != null && q.partnerRanking != null && q.myRanking![pos] == q.partnerRanking![pos]
-                        ? FontWeight.w700
+                        ? FontWeight.w800
                         : FontWeight.w400,
                   ),
                 ),
@@ -289,7 +327,7 @@ class _Rankings extends StatelessWidget {
     );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [column('You', q.myRanking), const SizedBox(width: 10), column(partnerName, q.partnerRanking)],
+      children: [column('you', q.myRanking), const SizedBox(width: 10), column(partnerName, q.partnerRanking)],
     );
   }
 }
@@ -304,20 +342,19 @@ class _AgreeCompare extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final me = question.myChoice;
     final partner = question.partnerChoice;
 
     Widget marker(int i) {
-      final labels = [if (me == i) 'You', if (partner == i) partnerName];
+      final labels = [if (me == i) 'you', if (partner == i) partnerName];
       return Expanded(
         child: Column(
           children: [
             AnimatedOpacity(
-              opacity: labels.isEmpty ? 0.35 : 1,
+              opacity: labels.isEmpty ? 0.3 : 1,
               duration: const Duration(milliseconds: 300),
-              child: Text(_faces[i], style: const TextStyle(fontSize: 24)),
+              child: Text(_faces[i], style: TextStyle(fontSize: labels.isEmpty ? 22 : 30)),
             ),
             const SizedBox(height: 4),
             Text(labels.join(' & '), style: text.labelSmall, textAlign: TextAlign.center),
@@ -332,9 +369,9 @@ class _AgreeCompare extends StatelessWidget {
         const SizedBox(height: 6),
         Row(
           children: [
-            Text('Disagree', style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+            Text('nope', style: text.bodySmall),
             const Spacer(),
-            Text('Agree', style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
+            Text('absolutely', style: text.bodySmall),
           ],
         ),
       ],
