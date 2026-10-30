@@ -21,13 +21,16 @@ model User {
   currentPairId String?  @map("current_pair_id") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at")
 
-  profile       Profile?
-  currentPair   Pair?          @relation("CurrentPair", fields: [currentPairId], references: [id], onDelete: SetNull)
-  refreshTokens RefreshToken[]
-  invites       Invite[]       @relation("InviteCreator")
-  answers       Answer[]
-  submissions   Submission[]
-  events        Event[]
+  profile           Profile?
+  currentPair       Pair?              @relation("CurrentPair", fields: [currentPairId], references: [id], onDelete: SetNull)
+  refreshTokens     RefreshToken[]
+  invites           Invite[]           @relation("InviteCreator")
+  answers           Answer[]
+  submissions       Submission[]
+  events            Event[]
+  reactions         Reaction[]
+  comments          Comment[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -153,6 +156,8 @@ model Game {
   questions   Question[]
   answers     Answer[]
   submissions Submission[]
+  reactions   Reaction[]
+  comments    Comment[]
 
   // At most one *daily* game per pair per day is enforced by a partial
   // unique index (games_one_daily_per_day) in raw SQL; Prisma can't express
@@ -302,4 +307,51 @@ model Match {
 
   @@index([pairId, status])
   @@map("matches")
+}
+
+// An emoji one player puts on a revealed answer. One per player per question.
+model Reaction {
+  id         String   @id @default(uuid()) @db.Uuid
+  gameId     String   @map("game_id") @db.Uuid
+  questionId String   @map("question_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  emoji      String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, userId])
+  @@index([gameId])
+  @@map("reactions")
+}
+
+// A short message under a game's results.
+model Comment {
+  id        String   @id @default(uuid()) @db.Uuid
+  gameId    String   @map("game_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  text      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  game Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([gameId, createdAt])
+  @@map("comments")
+}
+
+// A browser's Web Push subscription, so we can notify a player who isn't in the app.
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }

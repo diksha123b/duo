@@ -6,6 +6,7 @@ import { loadConfig } from '../src/config.js';
 import { unauthorized } from '../src/lib/errors.js';
 import type { GoogleIdentity } from '../src/lib/google.js';
 import { createPrisma } from '../src/lib/prisma.js';
+import type { PushSender } from '../src/modules/push/notifier.js';
 import { TEST_ENV } from './env.js';
 
 // Fake Google: the "idToken" is a JSON-encoded identity, or "bad" to fail.
@@ -14,14 +15,20 @@ const fakeGoogle = async (idToken: string): Promise<GoogleIdentity> => {
   return JSON.parse(idToken) as GoogleIdentity;
 };
 
-export function setupTestApp() {
+export function setupTestApp(opts: { pushSender?: PushSender | null } = {}) {
   const ctx = {} as { app: FastifyInstance; prisma: ReturnType<typeof createPrisma>; redis: Redis };
 
   beforeAll(async () => {
     const config = loadConfig({ ...process.env, ...TEST_ENV });
     ctx.prisma = createPrisma(config.DATABASE_URL);
     ctx.redis = new Redis(config.REDIS_URL);
-    ctx.app = await buildApp({ config, prisma: ctx.prisma, redis: ctx.redis, verifyGoogle: fakeGoogle });
+    ctx.app = await buildApp({
+      config,
+      prisma: ctx.prisma,
+      redis: ctx.redis,
+      verifyGoogle: fakeGoogle,
+      pushSender: opts.pushSender,
+    });
   });
 
   beforeEach(async () => {

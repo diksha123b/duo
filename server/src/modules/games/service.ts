@@ -47,6 +47,10 @@ export interface SubmittedAnswer {
   ranking?: number[];
 }
 
+/** The emoji you can react with. Fixed so reactions stay friendly and render everywhere. */
+export const REACTIONS = ['😂', '❤️', '😮', '🔥', '🤔', '👏'] as const;
+const MAX_COMMENTS = 200;
+
 type GameWithQuestions = Game & { questions: Question[] };
 
 const isUniqueViolation = (err: unknown) =>
@@ -274,6 +278,35 @@ export class GameService {
     };
   }
 
+  /** Puts (or with null, removes) your emoji on a revealed answer. */
+  async react(userId: string, gameId: string, questionId: string, emoji: string | null) {
+    const { game } = await this.gameForUser(gameId, userId);
+    if (!game.completedAt) throw conflict('NOT_REVEALED', 'React once you’ve both answered');
+    const question = await this.prisma.question.findFirst({ where: { id: questionId, gameId } });
+    if (!question) throw notFound('QUESTION_NOT_FOUND', 'Question not found');
+    if (emoji === null) {
+      await this.prisma.reaction.deleteMany({ where: { questionId, userId } });
+    } else {
+      await this.prisma.reaction.upsert({
+        where: { questionId_userId: { questionId, userId } },
+        create: { gameId, questionId, userId, emoji },
+        update: { emoji },
+      });
+    }
+    return { game: await this.view(gameId, userId), pairId: game.pairId };
+  }
+
+  /** Adds a message to the chat under a game's results. */
+  async comment(userId: string, gameId: string, text: string) {
+    const { game } = await this.gameForUser(gameId, userId);
+    if (!game.completedAt) throw conflict('NOT_REVEALED', 'Chat opens once you’ve both answered');
+    if ((await this.prisma.comment.count({ where: { gameId } })) >= MAX_COMMENTS) {
+      throw conflict('TOO_MANY_COMMENTS', 'This chat is full. Start a new round!');
+    }
+    await this.prisma.comment.create({ data: { gameId, userId, text } });
+    return { game: await this.view(gameId, userId), pairId: game.pairId };
+  }
+
   private async replay(userId: string, gameId: string, idempotencyKey: string) {
     const prior = await this.prisma.submission.findUnique({ where: { idempotencyKey } });
     if (!prior) {
@@ -322,8 +355,13 @@ export class GameService {
         questions: { orderBy: { position: 'asc' } },
         answers: true,
         submissions: true,
+        reactions: true,
+        comments: { orderBy: { createdAt: 'asc' } },
       },
     });
+    const reactionOf = (questionId: string, mine: boolean) =>
+      game.reactions.find((r) => r.questionId === questionId && (r.userId === userId) === mine)?.emoji ??
+      null;
     const meSubmitted = game.submissions.some((s) => s.userId === userId);
     const partnerSubmitted = game.submissions.some((s) => s.userId !== userId);
     const completed = game.completedAt !== null;
@@ -359,8 +397,18 @@ export class GameService {
         myRanking: meSubmitted ? ranking(q.id, true) : null,
         partnerRanking: completed ? ranking(q.id, false) : null,
         correctOption: completed ? q.correctOption : null,
+        reactions: completed ? { mine: reactionOf(q.id, true), partner: reactionOf(q.id, false) } : null,
       })),
       summary: completed ? summarise(game, userId) : null,
+      // The chat under the results; empty until both have answered.
+      comments: completed
+        ? game.comments.map((c) => ({
+            id: c.id,
+            mine: c.userId === userId,
+            text: c.text,
+            createdAt: c.createdAt,
+          }))
+        : [],
     };
   }
 }

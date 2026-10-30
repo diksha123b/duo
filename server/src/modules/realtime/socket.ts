@@ -158,6 +158,15 @@ export function attachRealtime(app: FastifyInstance, opts: { pubClient: Redis; s
     }),
   );
 
+  // A reaction or chat message: refresh both players' results, each with their own view.
+  app.events.on(
+    'game:social',
+    safe(async ({ gameId, pairId }) => {
+      const sockets = await io.in(pairRoom(pairId)).fetchSockets();
+      for (const s of sockets) s.emit('game:updated', { game: await games.view(gameId, s.data.userId) });
+    }),
+  );
+
   // A bonus round was started: the other person's home screen shows it.
   app.events.on(
     'bonus:changed',

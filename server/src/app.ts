@@ -13,6 +13,9 @@ import { arcadeRoutes } from './modules/arcade/routes.js';
 import { ArcadeService } from './modules/arcade/service.js';
 import type { Rng } from './modules/arcade/engines/types.js';
 import { authRoutes } from './modules/auth/routes.js';
+import { createWebPushSender, Notifier, type PushSender } from './modules/push/notifier.js';
+import { pushRoutes } from './modules/push/routes.js';
+import { registerPushTriggers } from './modules/push/triggers.js';
 import { gameRoutes } from './modules/games/routes.js';
 import { bankProvider, GameService, type GameProvider } from './modules/games/service.js';
 import { pairingRoutes } from './modules/pairing/routes.js';
@@ -25,6 +28,7 @@ export interface Deps {
   tokens: TokenService;
   games: GameService;
   arcade: ArcadeService;
+  notifier: Notifier;
   verifyGoogle: GoogleVerifier;
 }
 
@@ -35,6 +39,9 @@ export interface AppEvents {
   'pair:changed': [{ pairId: string }];
   'match:updated': [{ matchId: string }];
   'bonus:changed': [{ pairId: string }];
+  'game:social': [
+    { gameId: string; pairId: string; userId: string; kind: 'reaction' | 'comment'; text: string },
+  ];
 }
 
 declare module 'fastify' {
@@ -48,9 +55,11 @@ declare module 'fastify' {
   }
 }
 
-export type BuildDeps = Omit<Deps, 'tokens' | 'games' | 'arcade'> & {
+export type BuildDeps = Omit<Deps, 'tokens' | 'games' | 'arcade' | 'notifier'> & {
   gameProvider?: GameProvider;
   arcadeRng?: Rng;
+  /** Overrides real web push (tests). */
+  pushSender?: PushSender | null;
 };
 
 export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {}) {
@@ -61,6 +70,20 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
     tokens: new TokenService(deps.prisma, deps.config),
     games: new GameService(deps.prisma, deps.gameProvider ?? bankProvider),
     arcade: new ArcadeService(deps.prisma, deps.arcadeRng),
+    notifier: new Notifier(
+      deps.prisma,
+      deps.redis,
+      deps.pushSender !== undefined
+        ? deps.pushSender
+        : deps.config.VAPID_PUBLIC_KEY && deps.config.VAPID_PRIVATE_KEY
+          ? createWebPushSender({
+              publicKey: deps.config.VAPID_PUBLIC_KEY,
+              privateKey: deps.config.VAPID_PRIVATE_KEY,
+              subject: deps.config.VAPID_SUBJECT,
+            })
+          : null,
+      app.log,
+    ),
   });
   app.decorate('events', new EventEmitter<AppEvents>());
   app.decorateRequest('userId', '');
@@ -97,6 +120,8 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
   await app.register(pairingRoutes);
   await app.register(gameRoutes);
   await app.register(arcadeRoutes);
+  await app.register(pushRoutes);
+  registerPushTriggers(app);
 
   return app;
 }

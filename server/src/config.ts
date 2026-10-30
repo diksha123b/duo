@@ -26,6 +26,10 @@ const schema = z.object({
   LLM_REQUEST_TIMEOUT_MS: z.coerce.number().default(15_000),
   LLM_JOB_TIMEOUT_MS: z.coerce.number().default(120_000),
   SENTRY_DSN: z.string().url().optional(),
+  // Web push. Generate once with `npx web-push generate-vapid-keys`; push is off without them.
+  VAPID_PUBLIC_KEY: z.string().optional(),
+  VAPID_PRIVATE_KEY: z.string().optional(),
+  VAPID_SUBJECT: z.string().default('mailto:hello@duo.app'),
   CORS_ORIGINS: z
     .string()
     .default('*')

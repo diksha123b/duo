@@ -4,6 +4,8 @@ import { badRequest } from '../../lib/errors.js';
 import { track } from '../../lib/events.js';
 import { parse } from '../../lib/validate.js';
 import { GAME_TYPES } from './content.js';
+import { REACTIONS } from './service.js';
+import { rateLimit } from '../../lib/rate-limit.js';
 
 const idParams = z.object({ id: z.string().uuid() });
 const submitBody = z.object({
@@ -70,6 +72,39 @@ export async function gameRoutes(app: FastifyInstance) {
     await games.gameForUser(id, req.userId);
     return { game: await games.view(id, req.userId) };
   });
+
+  // Reactions and chat on revealed results; both phones update live.
+  app.put('/games/:id/questions/:qid/reaction', { preHandler: app.authenticate }, async (req) => {
+    const { id, qid } = parse(z.object({ id: z.string().uuid(), qid: z.string().uuid() }), req.params);
+    const { emoji } = parse(z.object({ emoji: z.enum(REACTIONS).nullable() }), req.body);
+    const { game, pairId } = await games.react(req.userId, id, qid, emoji);
+    app.events.emit('game:social', {
+      gameId: id,
+      pairId,
+      userId: req.userId,
+      kind: 'reaction',
+      text: emoji ?? '',
+    });
+    return { game };
+  });
+
+  app.post(
+    '/games/:id/comments',
+    {
+      preHandler: [
+        app.authenticate,
+        rateLimit(redis, { name: 'comment', max: 20, windowSeconds: 60, key: (req) => req.userId }),
+      ],
+    },
+    async (req, reply) => {
+      const { id } = parse(idParams, req.params);
+      const { text } = parse(z.object({ text: z.string().trim().min(1).max(200) }), req.body);
+      const { game, pairId } = await games.comment(req.userId, id, text);
+      app.events.emit('game:social', { gameId: id, pairId, userId: req.userId, kind: 'comment', text });
+      reply.code(201);
+      return { game };
+    },
+  );
 
   app.post('/games/:id/submit', { preHandler: app.authenticate }, async (req) => {
     const { id } = parse(idParams, req.params);
