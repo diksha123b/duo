@@ -16,10 +16,35 @@ import '../pairing/pair_controller.dart';
 import 'game_controller.dart';
 import 'results_view.dart';
 
-/// Today's game: play → waiting for the other person → live reveal, all on
-/// one route so the reveal arrives in place without navigation.
+/// True while answers are picked but not yet submitted, so leaving can ask first.
+final answersInProgress = ValueNotifier<bool>(false);
+
+/// Asks before leaving a game with unsubmitted answers. Used by the router for
+/// every way out: the back arrow, the browser's back button, Android back.
+Future<bool> confirmLeaveGame(BuildContext context) async {
+  if (!answersInProgress.value) return true;
+  final quit = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('quit this game?'),
+      content: const Text('your answers so far won’t be saved. you can start again any time today.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('quit')),
+        FilledButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('keep playing')),
+      ],
+    ),
+  );
+  if (quit == true) answersInProgress.value = false;
+  return quit == true;
+}
+
+/// Today's game, or a bonus round when [bonusId] is given: play → waiting for
+/// the other person → live reveal, all on one route so the reveal arrives in
+/// place without navigation.
 class GameScreen extends ConsumerStatefulWidget {
-  const GameScreen({super.key});
+  const GameScreen({super.key, this.bonusId});
+
+  final String? bonusId;
 
   @override
   ConsumerState<GameScreen> createState() => _GameScreenState();
@@ -42,14 +67,17 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final game = ref.watch(todayGameProvider);
+    final id = widget.bonusId;
+    final game = id == null ? ref.watch(todayGameProvider) : ref.watch(bonusGameProvider(id));
+    PlayableGame notifier() =>
+        id == null ? ref.read(todayGameProvider.notifier) : ref.read(bonusGameProvider(id).notifier);
     final pair = ref.watch(pairProvider).value;
     final partnerName = pair?.partner.displayName ?? 'Partner';
     final style = game.value == null ? null : GameStyle.of(game.value!.type);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(style == null ? "today's game" : '${style.emoji} ${style.name}'),
+        title: Text(style == null ? "today's game" : '${style.emoji} ${style.name}${id == null ? '' : ' · bonus'}'),
         // Opened directly (e.g. after a refresh) there's nothing to pop back to.
         leading: (GoRouter.maybeOf(context)?.canPop() ?? true)
             ? null
@@ -61,7 +89,7 @@ class _GameScreenState extends ConsumerState<GameScreen> {
             constraints: const BoxConstraints(maxWidth: 560),
             child: AsyncView(
               value: game,
-              onRetry: () => ref.invalidate(todayGameProvider),
+              onRetry: () => id == null ? ref.invalidate(todayGameProvider) : ref.invalidate(bonusGameProvider(id)),
               isEmpty: (g) => g.questions.isEmpty,
               empty: const EmptyView(message: "today's game is still baking. check back in a minute."),
               data: (g) => AnimatedSwitcher(
@@ -78,7 +106,12 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                     partnerName: partnerName,
                     relationship: pair?.relationship ?? Relationship.friends,
                   ),
-                  _ => _Play(key: const ValueKey('play'), game: g, partnerName: partnerName),
+                  _ => _Play(
+                    key: const ValueKey('play'),
+                    game: g,
+                    partnerName: partnerName,
+                    submit: (choices, rankings) => notifier().submit(choices, rankings: rankings),
+                  ),
                 },
               ),
             ),
@@ -90,10 +123,11 @@ class _GameScreenState extends ConsumerState<GameScreen> {
 }
 
 class _Play extends ConsumerStatefulWidget {
-  const _Play({super.key, required this.game, required this.partnerName});
+  const _Play({super.key, required this.game, required this.partnerName, required this.submit});
 
   final Game game;
   final String partnerName;
+  final Future<void> Function(Map<String, int> choices, Map<String, List<int>> rankings) submit;
 
   @override
   ConsumerState<_Play> createState() => _PlayState();
@@ -107,8 +141,16 @@ class _PlayState extends ConsumerState<_Play> {
   List<GameQuestion> get _questions => widget.game.questions;
   bool get _onReview => _index == _questions.length;
 
+  @override
+  void dispose() {
+    // Submitted, revealed or quit: nothing left to lose.
+    answersInProgress.value = false;
+    super.dispose();
+  }
+
   void _choose(int option) {
     HapticFeedback.selectionClick();
+    answersInProgress.value = true;
     setState(() => _choices[_questions[_index].id] = option);
     // Let the selection show for a beat before moving on.
     final at = _index;
@@ -119,6 +161,7 @@ class _PlayState extends ConsumerState<_Play> {
 
   void _lockRanking(List<int> order) {
     HapticFeedback.selectionClick();
+    answersInProgress.value = true;
     setState(() {
       _rankings[_questions[_index].id] = order;
       _index++;
@@ -127,7 +170,8 @@ class _PlayState extends ConsumerState<_Play> {
 
   Future<void> _submit() async {
     try {
-      await ref.read(todayGameProvider.notifier).submit(_choices, rankings: _rankings);
+      await widget.submit(_choices, _rankings);
+      answersInProgress.value = false;
     } catch (e) {
       // Answers stay in place; tapping submit again reuses the same idempotency key.
       if (mounted) showError(context, e);

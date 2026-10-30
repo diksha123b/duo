@@ -37,7 +37,7 @@ String? _destination(Me? me, String location) {
   if (!me.onboarded) return location == '/onboarding' ? null : '/onboarding';
   if (!me.paired) return const {'/pair', '/interests'}.contains(location) ? null : '/pair';
   const allowed = {'/home', '/game', '/interests', '/history', '/arcade'};
-  final nested = location.startsWith('/history/') || location.startsWith('/arcade/');
+  final nested = ['/history/', '/arcade/', '/bonus/'].any(location.startsWith);
   return allowed.contains(location) || nested ? null : '/home';
 }
 
@@ -59,7 +59,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/interests', builder: (_, _) => const InterestsScreen(editing: true)),
       GoRoute(path: '/pair', builder: (_, _) => const PairingScreen()),
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
-      GoRoute(path: '/game', builder: (_, _) => const GameScreen()),
+      GoRoute(path: '/game', builder: (_, _) => const GameScreen(), onExit: (context, _) => confirmLeaveGame(context)),
+      GoRoute(
+        path: '/bonus/:id',
+        builder: (_, state) => GameScreen(bonusId: state.pathParameters['id']!),
+        onExit: (context, _) => confirmLeaveGame(context),
+      ),
       GoRoute(path: '/history', builder: (_, _) => const HistoryScreen()),
       GoRoute(path: '/arcade', builder: (_, _) => const ArcadeScreen()),
       GoRoute(

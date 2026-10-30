@@ -261,6 +261,7 @@ class Game {
     required this.completed,
     required this.questions,
     this.summary,
+    this.daily = true,
   });
 
   final String id;
@@ -273,6 +274,9 @@ class Game {
   final List<GameQuestion> questions;
   final GameSummary? summary;
 
+  /// False for bonus rounds (no streak).
+  final bool daily;
+
   factory Game.fromJson(Map<String, dynamic> j) => Game(
     id: j['id'] as String,
     day: j['day'] as String,
@@ -283,6 +287,7 @@ class Game {
     completed: j['completed'] as bool,
     questions: (j['questions'] as List).map((q) => GameQuestion.fromJson(q as Map<String, dynamic>)).toList(),
     summary: GameSummary.fromJson(j['summary'] as Map<String, dynamic>?),
+    daily: j['daily'] as bool? ?? true,
   );
 
   Game copyWith({bool? partnerSubmitted}) => Game(
@@ -295,6 +300,7 @@ class Game {
     completed: completed,
     questions: questions,
     summary: summary,
+    daily: daily,
   );
 }
 

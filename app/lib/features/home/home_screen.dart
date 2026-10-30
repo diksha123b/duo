@@ -476,8 +476,8 @@ class _GameShelf extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('the daily games', style: text.titleLarge),
-        Text('a new one lands every day. you never know which.', style: text.bodyMedium),
+        Text('play any game, any time', style: text.titleLarge),
+        Text('today’s game builds your streak. these extra rounds are just for fun.', style: text.bodyMedium),
         const SizedBox(height: 12),
         for (final cat in GameCategory.values) ...[
           Padding(
@@ -500,15 +500,34 @@ class _GameShelf extends StatelessWidget {
   }
 }
 
-class _ShelfCard extends StatelessWidget {
+/// A game type you can play right now as a bonus round, with a badge when a
+/// round is already open between you two.
+class _ShelfCard extends ConsumerWidget {
   const _ShelfCard({required this.type});
 
   final GameType type;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final style = GameStyle.of(type);
     final text = Theme.of(context).textTheme;
+    final open = ref.watch(openBonusProvider).value?.where((b) => b.type == type).firstOrNull;
+    final badge = switch (open) {
+      null => null,
+      OpenBonus(meSubmitted: false, partnerSubmitted: true) => 'their answers are in!',
+      OpenBonus(meSubmitted: false) => 'your turn',
+      _ => 'waiting on them',
+    };
+
+    Future<void> play() async {
+      try {
+        final id = await ref.read(openBonusProvider.notifier).start(type);
+        if (context.mounted) context.push('/bonus/$id');
+      } catch (e) {
+        if (context.mounted) showError(context, e);
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.only(right: 6, bottom: 6),
       child: Sticker(
@@ -524,13 +543,29 @@ class _ShelfCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(24, 0, 24, 28),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(style.emoji, style: const TextStyle(fontSize: 48)),
-                  Text(style.name, style: Theme.of(ctx).textTheme.headlineMedium),
+                  Text(style.emoji, style: const TextStyle(fontSize: 48), textAlign: TextAlign.center),
+                  Text(style.name, style: Theme.of(ctx).textTheme.headlineMedium, textAlign: TextAlign.center),
                   const SizedBox(height: 4),
-                  Text(style.tagline, style: Theme.of(ctx).textTheme.titleMedium),
+                  Text(style.tagline, style: Theme.of(ctx).textTheme.titleMedium, textAlign: TextAlign.center),
                   const SizedBox(height: 12),
                   Text(style.howTo, textAlign: TextAlign.center),
+                  const SizedBox(height: 6),
+                  Text(
+                    'bonus rounds are just for fun: they don’t change your streak.',
+                    style: Theme.of(ctx).textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 18),
+                  StickerButton(
+                    label: open == null ? 'play a round now' : 'continue the round',
+                    color: style.color,
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      await play();
+                    },
+                  ),
                 ],
               ),
             ),
@@ -539,10 +574,21 @@ class _ShelfCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(style.emoji, style: const TextStyle(fontSize: 28)),
+            Row(
+              children: [
+                Text(style.emoji, style: const TextStyle(fontSize: 28)),
+                const Spacer(),
+                if (badge != null) Tag(badge, color: Colors.white),
+              ],
+            ),
             const SizedBox(height: 6),
             Text(style.name, style: text.titleMedium?.copyWith(color: DuoColors.ink)),
             Text(style.tagline, style: text.bodySmall?.copyWith(color: DuoColors.ink), maxLines: 2),
+            const SizedBox(height: 8),
+            Text(
+              badge == null ? 'tap to play ›' : 'tap to continue ›',
+              style: text.labelLarge?.copyWith(color: DuoColors.ink),
+            ),
           ],
         ),
       ),

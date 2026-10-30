@@ -17,31 +17,18 @@ class LineupNotifier extends Notifier<List<LineupDay>> {
 
 final todayGameProvider = AsyncNotifierProvider<TodayGameController, Game>(TodayGameController.new);
 
-class TodayGameController extends AsyncNotifier<Game> {
+/// Submitting answers and taking live updates, shared by today's game and bonus rounds.
+mixin PlayableGame on AsyncNotifier<Game> {
   ApiClient get _api => ref.read(apiProvider);
 
   /// Reused across retries of the same submission so a timeout-then-retry
   /// (or a double tap) can't create a second submission.
   String? _pendingKey;
 
-  @override
-  Future<Game> build() async {
-    ref.watch(authProvider.select((a) => a.value?.pairId));
-    return _fetch();
-  }
-
-  Future<Game> _fetch() async {
-    final res = await _api.get('/games/today');
-    final lineup = (res['lineup'] as List? ?? const [])
-        .map((j) => LineupDay.fromJson(j as Map<String, dynamic>))
-        .toList();
-    // Deferred so it never updates another provider mid-build.
-    Future.microtask(() => ref.read(lineupProvider.notifier).set(lineup));
-    return Game.fromJson(res['game'] as Map<String, dynamic>);
-  }
+  Future<Game> fetch();
 
   Future<void> refresh() async {
-    state = AsyncData(await _fetch());
+    state = AsyncData(await fetch());
   }
 
   /// [choices] holds one option per question; for Rank it, [rankings] holds
@@ -76,7 +63,7 @@ class TodayGameController extends AsyncNotifier<Game> {
     }
   }
 
-  /// Applies a game pushed over the socket. Ignores stale pushes for other days.
+  /// Applies a game pushed over the socket. Ignores pushes for other games.
   void applyServer(Map<String, dynamic> json) {
     final incoming = Game.fromJson(json);
     final current = state.value;
@@ -95,5 +82,75 @@ class TodayGameController extends AsyncNotifier<Game> {
     final current = state.value;
     if (current != null && current.id == game.id && current.completed && !game.completed) return;
     state = AsyncData(game);
+  }
+}
+
+class TodayGameController extends AsyncNotifier<Game> with PlayableGame {
+  @override
+  Future<Game> build() async {
+    ref.watch(authProvider.select((a) => a.value?.pairId));
+    return fetch();
+  }
+
+  @override
+  Future<Game> fetch() async {
+    final res = await _api.get('/games/today');
+    final lineup = (res['lineup'] as List? ?? const [])
+        .map((j) => LineupDay.fromJson(j as Map<String, dynamic>))
+        .toList();
+    // Deferred so it never updates another provider mid-build.
+    Future.microtask(() => ref.read(lineupProvider.notifier).set(lineup));
+    return Game.fromJson(res['game'] as Map<String, dynamic>);
+  }
+}
+
+/// A bonus round: any game type, any time, no streak.
+final bonusGameProvider = AsyncNotifierProvider.family<BonusGameController, Game, String>(BonusGameController.new);
+
+class BonusGameController extends AsyncNotifier<Game> with PlayableGame {
+  BonusGameController(this.id);
+
+  final String id;
+
+  @override
+  Future<Game> build() => fetch();
+
+  @override
+  Future<Game> fetch() async => Game.fromJson((await _api.get('/games/$id'))['game'] as Map<String, dynamic>);
+}
+
+/// An open bonus round: who has answered so far.
+class OpenBonus {
+  const OpenBonus(this.id, this.type, this.meSubmitted, this.partnerSubmitted);
+
+  final String id;
+  final GameType type;
+  final bool meSubmitted;
+  final bool partnerSubmitted;
+}
+
+final openBonusProvider = AsyncNotifierProvider<OpenBonusController, List<OpenBonus>>(OpenBonusController.new);
+
+class OpenBonusController extends AsyncNotifier<List<OpenBonus>> {
+  @override
+  Future<List<OpenBonus>> build() async {
+    ref.watch(authProvider.select((a) => a.value?.pairId));
+    final res = await ref.read(apiProvider).get('/games/bonus');
+    return [
+      for (final g in (res['games'] as List).cast<Map>())
+        OpenBonus(
+          g['id'] as String,
+          GameType.parse(g['type'] as String),
+          g['meSubmitted'] as bool,
+          g['partnerSubmitted'] as bool,
+        ),
+    ];
+  }
+
+  /// Starts a round of [type] (or joins the open one) and returns its id.
+  Future<String> start(GameType type) async {
+    final res = await ref.read(apiProvider).post('/games/bonus', body: {'type': type.wire});
+    ref.invalidateSelf();
+    return (res['game'] as Map)['id'] as String;
   }
 }

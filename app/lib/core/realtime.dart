@@ -69,9 +69,20 @@ class RealtimeController extends Notifier<RealtimeState> {
         if (game != null) _game.applyServer(Map<String, dynamic>.from(game as Map));
       })
       ..on('presence', (data) => state = state.copyWith(partnerPresence: _presence((data as Map)['state'])))
-      ..on('game:partner_submitted', (data) => _game.markPartnerSubmitted((data as Map)['gameId'] as String))
+      ..on('game:partner_submitted', (data) {
+        final id = (data as Map)['gameId'] as String;
+        _game.markPartnerSubmitted(id);
+        // It may be a bonus round instead: update it if it's open, and the badges on home.
+        if (ref.exists(bonusGameProvider(id))) ref.read(bonusGameProvider(id).notifier).markPartnerSubmitted(id);
+        ref.invalidate(openBonusProvider);
+      })
+      ..on('bonus:changed', (_) => ref.invalidate(openBonusProvider))
       ..on('game:revealed', (data) {
-        _game.applyServer(Map<String, dynamic>.from((data as Map)['game'] as Map));
+        final game = Map<String, dynamic>.from((data as Map)['game'] as Map);
+        final id = game['id'] as String;
+        if (ref.exists(bonusGameProvider(id))) ref.read(bonusGameProvider(id).notifier).applyServer(game);
+        ref.invalidate(openBonusProvider);
+        _game.applyServer(game);
         // Completing today's game moves the streak and adds a history entry.
         ref.invalidate(pairProvider);
         ref.invalidate(historyProvider);
