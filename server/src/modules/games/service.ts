@@ -1,10 +1,17 @@
-import { Prisma, type Game, type Pair, type PrismaClient, type Question } from '@prisma/client';
+import {
+  Prisma,
+  type Game,
+  type GameType,
+  type Pair,
+  type PrismaClient,
+  type Question,
+} from '@prisma/client';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { track } from '../../lib/events.js';
 import { applyCompletion } from '../../lib/streak.js';
 import { dateToDay, dayToDate, localDay } from '../../lib/time.js';
 import { bankGame } from './bank.js';
-import { GAME_TYPES, type GameContent, type GameTypeName } from './content.js';
+import { AGREE_SCALE, GAME_TYPES, type GameContent, type GameTypeName } from './content.js';
 
 export interface ProvidedGame {
   content: GameContent;
@@ -32,9 +39,12 @@ export function typeForDay(day: string): GameTypeName {
   return GAME_TYPES[n % GAME_TYPES.length]!;
 }
 
+// RANK_IT answers send `ranking` (option indexes, first to last); every
+// other type sends `choice`.
 export interface SubmittedAnswer {
   questionId: string;
-  choice: number;
+  choice?: number;
+  ranking?: number[];
 }
 
 type GameWithQuestions = Game & { questions: Question[] };
@@ -116,13 +126,13 @@ export class GameService {
 
     const { game } = await this.gameForUser(gameId, userId);
     const questions = await this.prisma.question.findMany({ where: { gameId } });
-    this.validateAnswers(questions, answers);
+    const rows = this.validateAnswers(game.type, questions, answers);
 
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.submission.create({ data: { gameId, userId, idempotencyKey } });
         await tx.answer.createMany({
-          data: answers.map((a) => ({ gameId, userId, questionId: a.questionId, choice: a.choice })),
+          data: rows.map((a) => ({ gameId, userId, ...a })),
         });
       });
     } catch (err) {
@@ -222,18 +232,30 @@ export class GameService {
     return { game: await this.view(gameId, userId), justCompleted: false, replayed: true };
   }
 
-  private validateAnswers(questions: Question[], answers: SubmittedAnswer[]) {
+  private validateAnswers(type: GameType, questions: Question[], answers: SubmittedAnswer[]) {
     const byId = new Map(questions.map((q) => [q.id, q]));
     const seen = new Set<string>();
-    for (const a of answers) {
+    const rows = answers.map((a) => {
       const q = byId.get(a.questionId);
       if (!q) throw badRequest('UNKNOWN_QUESTION', 'Answer refers to a question not in this game');
       if (seen.has(a.questionId)) throw badRequest('DUPLICATE_ANSWER', 'Each question can be answered once');
-      if (a.choice >= q.options.length) throw badRequest('INVALID_CHOICE', 'Choice is out of range');
       seen.add(a.questionId);
-    }
+
+      if (type === 'RANK_IT') {
+        const r = a.ranking ?? [];
+        const isPermutation =
+          r.length === q.options.length && [...r].sort((x, y) => x - y).every((v, i) => v === i);
+        if (!isPermutation) throw badRequest('INVALID_RANKING', 'Rank every item exactly once');
+        return { questionId: q.id, choice: r[0]!, ranking: r };
+      }
+      if (a.choice === undefined || a.choice >= q.options.length) {
+        throw badRequest('INVALID_CHOICE', 'Choice is out of range');
+      }
+      return { questionId: q.id, choice: a.choice, ranking: [] };
+    });
     if (seen.size !== questions.length)
       throw badRequest('INCOMPLETE', 'Answer every question before submitting');
+    return rows;
   }
 
   // What `userId` is allowed to see. The partner's answers and trivia
@@ -250,8 +272,13 @@ export class GameService {
     const meSubmitted = game.submissions.some((s) => s.userId === userId);
     const partnerSubmitted = game.submissions.some((s) => s.userId !== userId);
     const completed = game.completedAt !== null;
-    const choice = (questionId: string, mine: boolean) =>
-      game.answers.find((a) => a.questionId === questionId && (a.userId === userId) === mine)?.choice ?? null;
+    const answerOf = (questionId: string, mine: boolean) =>
+      game.answers.find((a) => a.questionId === questionId && (a.userId === userId) === mine);
+    const choice = (questionId: string, mine: boolean) => answerOf(questionId, mine)?.choice ?? null;
+    const ranking = (questionId: string, mine: boolean) => {
+      const r = answerOf(questionId, mine)?.ranking;
+      return r && r.length > 0 ? r : null;
+    };
     const aboutOf = (q: Question) => {
       const about = (q.meta as { about?: string }).about;
       return about ? (about === userId ? 'me' : 'partner') : null;
@@ -273,6 +300,8 @@ export class GameService {
         about: aboutOf(q),
         myChoice: meSubmitted ? choice(q.id, true) : null,
         partnerChoice: completed ? choice(q.id, false) : null,
+        myRanking: meSubmitted ? ranking(q.id, true) : null,
+        partnerRanking: completed ? ranking(q.id, false) : null,
         correctOption: completed ? q.correctOption : null,
       })),
       summary: completed ? summarise(game, userId) : null,
@@ -280,12 +309,25 @@ export class GameService {
   }
 }
 
+// Spearman footrule similarity of two rankings: 1 = identical order, 0 = reversed.
+export function rankingSimilarity(a: number[], b: number[]): number {
+  const n = a.length;
+  const posB = new Map(b.map((item, i) => [item, i]));
+  const distance = a.reduce((sum, item, i) => sum + Math.abs(i - (posB.get(item) ?? i)), 0);
+  const max = Math.floor((n * n) / 2);
+  return max === 0 ? 1 : 1 - distance / max;
+}
+
 function summarise(
-  game: GameWithQuestions & { answers: { questionId: string; userId: string; choice: number }[] },
+  game: GameWithQuestions & {
+    answers: { questionId: string; userId: string; choice: number; ranking: number[] }[];
+  },
   userId: string,
 ) {
-  const pick = (qid: string, mine: boolean) =>
-    game.answers.find((a) => a.questionId === qid && (a.userId === userId) === mine)?.choice;
+  const answer = (qid: string, mine: boolean) =>
+    game.answers.find((a) => a.questionId === qid && (a.userId === userId) === mine);
+  const pick = (qid: string, mine: boolean) => answer(qid, mine)?.choice;
+  const percent = (x: number) => Math.round(x * 100);
 
   switch (game.type) {
     case 'WOULD_YOU_RATHER': {
@@ -311,12 +353,36 @@ function summarise(
       }
       return { kind: 'knows' as const, myCorrect, partnerCorrect, aboutPartner, aboutMe };
     }
-    case 'SHARED_TRIVIA': {
+    case 'SHARED_TRIVIA':
+    case 'EMOJI_DECODE': {
       const score = (mine: boolean) =>
         game.questions.filter((q) => pick(q.id, mine) === q.correctOption).length;
       const myScore = score(true);
       const partnerScore = score(false);
       return { kind: 'trivia' as const, myScore, partnerScore, total: game.questions.length };
+    }
+    case 'AGREE_O_METER': {
+      // Each step apart on the 5-point scale costs a quarter of the question.
+      const steps = AGREE_SCALE.length - 1;
+      const gaps = game.questions.map((q) => Math.abs((pick(q.id, true) ?? 0) - (pick(q.id, false) ?? 0)));
+      const closeness = gaps.reduce((sum, g) => sum + (steps - g) / steps, 0) / game.questions.length;
+      return {
+        kind: 'closeness' as const,
+        percent: percent(closeness),
+        exact: gaps.filter((g) => g === 0).length,
+        total: game.questions.length,
+      };
+    }
+    case 'RANK_IT': {
+      const sims = game.questions.map((q) =>
+        rankingSimilarity(answer(q.id, true)?.ranking ?? [], answer(q.id, false)?.ranking ?? []),
+      );
+      return {
+        kind: 'rank' as const,
+        percent: percent(sims.reduce((a, b) => a + b, 0) / sims.length),
+        sameTop: game.questions.filter((q) => pick(q.id, true) === pick(q.id, false)).length,
+        total: game.questions.length,
+      };
     }
   }
 }

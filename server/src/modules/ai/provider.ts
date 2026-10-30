@@ -2,7 +2,7 @@ import type { Pair, PrismaClient } from '@prisma/client';
 import type { Redis } from 'ioredis';
 import type { FastifyBaseLogger } from 'fastify';
 import { dayToDate } from '../../lib/time.js';
-import { gameContentSchema, type GameContent, type GameTypeName } from '../games/content.js';
+import { AGREE_SCALE, gameContentSchema, type GameContent, type GameTypeName } from '../games/content.js';
 import { bankProvider, type GameProvider } from '../games/service.js';
 import { costUsd, type LlmClient, type LlmGame } from './llm.js';
 
@@ -14,6 +14,9 @@ const INSTRUCTIONS: Record<GameTypeName, string> = {
   WOULD_YOU_RATHER: `Game type: would you rather. Write 5 questions. Each has exactly 2 options; the prompt is a short lead-in like "Would you rather…". Set correctOption and about to null.`,
   WHO_KNOWS_WHOM: `Game type: who knows whom better. Write 6 questions with 3 or 4 options each: 3 about partner A and 3 about partner B (set "about" to "A" or "B"). The partner the question is about answers honestly; the other guesses. Phrase prompts neutrally (e.g. "Ideal weekend?") because both partners see the same text. Set correctOption to null.`,
   SHARED_TRIVIA: `Game type: shared trivia. Write 5 factual multiple-choice questions with 4 options each, drawn from both partners' interests. Set correctOption to the 0-based index of the right answer; only use facts you are certain of. Set about to null.`,
+  EMOJI_DECODE: `Game type: emoji decode. Write 5 puzzles. The prompt is 2–4 emojis that clue a well-known movie, song, food, place or brand tied to their interests, followed by the category in brackets, e.g. "🦁👑🌅 (movie)". Give exactly 4 plausible options and set correctOption to the 0-based index of the answer; only use clues you are certain decode unambiguously. Set about to null.`,
+  AGREE_O_METER: `Game type: agree-o-meter. Write 5 light, non-divisive "hot take" statements tied to their interests (no politics, religion or anything hurtful), each under 100 characters, e.g. "Rainy days are the best days." Each partner rates how much they agree. Set options to an empty list (the app supplies the scale), and correctOption and about to null.`,
+  RANK_IT: `Game type: rank it. Write 5 questions. The prompt is a short instruction like "Rank these weekend plans"; options are exactly 4 distinct items drawn from their interests that people would genuinely disagree on. Set correctOption and about to null.`,
 };
 
 export interface AiProviderOptions {
@@ -35,7 +38,7 @@ export function toContent(type: GameTypeName, out: LlmGame) {
     title: out.title,
     questions: out.questions.map((q) => ({
       prompt: q.prompt,
-      options: q.options,
+      options: type === 'AGREE_O_METER' ? AGREE_SCALE : q.options,
       correctOption: q.correctOption ?? undefined,
       about: q.about ?? undefined,
     })),

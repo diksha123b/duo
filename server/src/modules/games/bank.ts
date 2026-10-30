@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { GameContent, GameTypeName } from './content.js';
+import { AGREE_SCALE, type GameContent, type GameTypeName } from './content.js';
 
 // Curated questions. Used directly until Day 5, then as the fallback when
 // LLM generation fails or returns something that doesn't validate.
@@ -135,10 +135,101 @@ const SHARED_TRIVIA: Q[] = [
   },
 ];
 
+const EMOJI_DECODE: Q[] = [
+  {
+    prompt: '🦁👑🌅 (movie)',
+    options: ['The Lion King', 'Madagascar', 'Jungle Book', 'Tarzan'],
+    correctOption: 0,
+  },
+  { prompt: '🚢🧊💔 (movie)', options: ['Jaws', 'Titanic', 'Frozen', 'Life of Pi'], correctOption: 1 },
+  { prompt: '🕷️🧑🕸️ (movie)', options: ['Ant-Man', 'Batman', 'Spider-Man', 'Venom'], correctOption: 2 },
+  {
+    prompt: '🧙‍♂️⚡👓 (movie)',
+    options: ['Lord of the Rings', 'Doctor Strange', 'Merlin', 'Harry Potter'],
+    correctOption: 3,
+  },
+  { prompt: '👸❄️⛄ (movie)', options: ['Frozen', 'Cinderella', 'Brave', 'Moana'], correctOption: 0 },
+  {
+    prompt: '🦖🏝️🚙 (movie)',
+    options: ['King Kong', 'Jurassic Park', 'Godzilla', 'Cast Away'],
+    correctOption: 1,
+  },
+  {
+    prompt: '🐠🔍🌊 (movie)',
+    options: ['Shark Tale', 'Moana', 'Finding Nemo', 'The Little Mermaid'],
+    correctOption: 2,
+  },
+  {
+    prompt: '🏏🏆🇮🇳 (movie)',
+    options: ['Dangal', 'Chak De! India', 'Gully Boy', 'Lagaan'],
+    correctOption: 3,
+  },
+  {
+    prompt: '👻👻📞 (movie)',
+    options: ['Ghostbusters', 'Casper', 'The Conjuring', 'Coco'],
+    correctOption: 0,
+  },
+  { prompt: '🧸🤠🚀 (movie)', options: ['Cars', 'Toy Story', 'Up', 'Wall-E'], correctOption: 1 },
+  {
+    prompt: '☔🎶💃 (song)',
+    options: ['Umbrella', 'Purple Rain', 'Singin’ in the Rain', 'Raindrops'],
+    correctOption: 2,
+  },
+  { prompt: '🌍🗺️🍕🍝 (food)', options: ['Paella', 'Sushi', 'Tacos', 'Italian food'], correctOption: 3 },
+  { prompt: '🍎📱💻 (brand)', options: ['Apple', 'Samsung', 'Google', 'Microsoft'], correctOption: 0 },
+  {
+    prompt: '⭐⚔️🌌 (movie)',
+    options: ['Star Trek', 'Star Wars', 'Interstellar', 'Avatar'],
+    correctOption: 1,
+  },
+];
+
+const AGREE_O_METER: Q[] = [
+  { prompt: 'Pineapple belongs on pizza.', options: AGREE_SCALE },
+  { prompt: 'Breakfast is the best meal of the day.', options: AGREE_SCALE },
+  { prompt: 'Texting is better than calling.', options: AGREE_SCALE },
+  { prompt: 'Rainy days are the best days.', options: AGREE_SCALE },
+  { prompt: 'The book is always better than the movie.', options: AGREE_SCALE },
+  { prompt: 'Weekends should be for doing nothing at all.', options: AGREE_SCALE },
+  { prompt: 'Sequels are never as good as the original.', options: AGREE_SCALE },
+  { prompt: 'Spicy food makes everything better.', options: AGREE_SCALE },
+  { prompt: 'Planning a trip is half the fun.', options: AGREE_SCALE },
+  { prompt: 'Cats are better company than dogs.', options: AGREE_SCALE },
+  { prompt: 'Early mornings are underrated.', options: AGREE_SCALE },
+  { prompt: 'Board games beat video games.', options: AGREE_SCALE },
+];
+
+const RANK_IT: Q[] = [
+  {
+    prompt: 'Rank these lazy Sunday plans',
+    options: ['Movie marathon', 'Long walk', 'Cooking together', 'Afternoon nap'],
+  },
+  { prompt: 'Rank these desserts', options: ['Ice cream', 'Gulab jamun', 'Chocolate cake', 'Cheesecake'] },
+  { prompt: 'Rank these holiday spots', options: ['Beach', 'Mountains', 'Big city', 'Countryside'] },
+  { prompt: 'Rank these date ideas', options: ['Stargazing', 'Food crawl', 'Concert', 'Museum'] },
+  { prompt: 'Rank these superpowers', options: ['Flying', 'Teleporting', 'Mind reading', 'Time travel'] },
+  { prompt: 'Rank these snacks', options: ['Samosa', 'Popcorn', 'Chips', 'Fruit'] },
+  { prompt: 'Rank these seasons', options: ['Summer', 'Monsoon', 'Winter', 'Spring'] },
+  { prompt: 'Rank these ways to relax', options: ['Music', 'Reading', 'Gaming', 'Sleeping'] },
+  { prompt: 'Rank these pets', options: ['Dog', 'Cat', 'Rabbit', 'Fish'] },
+  { prompt: 'Rank these drinks', options: ['Chai', 'Coffee', 'Hot chocolate', 'Lemonade'] },
+];
+
 const TITLES: Record<GameTypeName, string> = {
   WOULD_YOU_RATHER: 'Would You Rather',
   WHO_KNOWS_WHOM: 'Who Knows Whom Better?',
   SHARED_TRIVIA: 'Team Trivia',
+  EMOJI_DECODE: 'Emoji Decode',
+  AGREE_O_METER: 'Agree-o-meter',
+  RANK_IT: 'Rank It',
+};
+
+const POOLS: Record<Exclude<GameTypeName, 'WHO_KNOWS_WHOM'>, Q[]> = {
+  WOULD_YOU_RATHER,
+  SHARED_TRIVIA,
+  EMOJI_DECODE,
+  AGREE_O_METER,
+  RANK_IT,
 };
 
 // Deterministic shuffle seeded by pair + day: both partners get the same game,
@@ -160,6 +251,5 @@ export function bankGame(type: GameTypeName, seed: string): GameContent {
       questions: picks.map((q, i) => ({ ...q, about: i % 2 === 0 ? ('A' as const) : ('B' as const) })),
     };
   }
-  const pool = type === 'WOULD_YOU_RATHER' ? WOULD_YOU_RATHER : SHARED_TRIVIA;
-  return { type, title: TITLES[type], questions: seededPick(pool, 5, seed) };
+  return { type, title: TITLES[type], questions: seededPick(POOLS[type], 5, seed) };
 }

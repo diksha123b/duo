@@ -103,6 +103,9 @@ enum GameType {
   WHO_KNOWS_WHOM
   WOULD_YOU_RATHER
   SHARED_TRIVIA
+  EMOJI_DECODE
+  AGREE_O_METER
+  RANK_IT
 }
 
 enum GameSource {
@@ -155,6 +158,8 @@ model Answer {
   gameId     String   @map("game_id") @db.Uuid
   userId     String   @map("user_id") @db.Uuid
   choice     Int
+  // RANK_IT only: option indexes from first to last; `choice` holds the top pick.
+  ranking    Int[]    @default([])
   createdAt  DateTime @default(now()) @map("created_at")
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)

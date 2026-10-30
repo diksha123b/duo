@@ -166,7 +166,9 @@ describe('pre-generation job', () => {
     const games = new GameService(ctx.prisma, provider(vi.fn<LlmClient>().mockResolvedValue(result(wyr))));
     const today = localDay(p.timezone);
     // The fake returns would-you-rather, so pick the next day with that type.
-    const day = [0, 1, 2].map((n) => addDays(today, n)).find((d) => typeForDay(d) === 'WOULD_YOU_RATHER')!;
+    const day = [0, 1, 2, 3, 4, 5]
+      .map((n) => addDays(today, n))
+      .find((d) => typeForDay(d) === 'WOULD_YOU_RATHER')!;
     await processGeneration({ prisma: ctx.prisma, games }, { pairId: p.id, day }, false);
     const game = await ctx.prisma.game.findFirstOrThrow({ include: { questions: true } });
     expect(game).toMatchObject({ source: 'AI', title: 'Cricket & Chai', type: 'WOULD_YOU_RATHER' });

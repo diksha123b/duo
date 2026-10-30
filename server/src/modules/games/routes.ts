@@ -7,7 +7,13 @@ import { parse } from '../../lib/validate.js';
 const idParams = z.object({ id: z.string().uuid() });
 const submitBody = z.object({
   answers: z
-    .array(z.object({ questionId: z.string().uuid(), choice: z.number().int().min(0) }))
+    .array(
+      z.object({
+        questionId: z.string().uuid(),
+        choice: z.number().int().min(0).optional(),
+        ranking: z.array(z.number().int().min(0)).max(10).optional(),
+      }),
+    )
     .min(1)
     .max(20),
 });
