@@ -59,7 +59,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               controller: _password,
               obscureText: true,
               autofillHints: const [AutofillHints.password],
-              decoration: const InputDecoration(labelText: 'Password'),
+              decoration: const InputDecoration(labelText: 'password'),
               validator: (v) => (v == null || v.isEmpty) ? 'Enter your password' : null,
               onFieldSubmitted: (_) => _submit(),
             ),
@@ -127,7 +127,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               controller: _name,
               textCapitalization: TextCapitalization.words,
               autofillHints: const [AutofillHints.givenName],
-              decoration: const InputDecoration(labelText: 'Your name'),
+              decoration: const InputDecoration(labelText: 'your name'),
               validator: (v) => (v == null || v.trim().isEmpty) ? 'What should your partner call you?' : null,
             ),
             const SizedBox(height: 12),
@@ -137,7 +137,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               controller: _password,
               obscureText: true,
               autofillHints: const [AutofillHints.newPassword],
-              decoration: const InputDecoration(labelText: 'Password', helperText: 'At least 8 characters'),
+              decoration: const InputDecoration(labelText: 'password', helperText: 'at least 8 characters'),
               validator: (v) => (v == null || v.length < 8) ? 'Use at least 8 characters' : null,
               onFieldSubmitted: (_) => _submit(),
             ),
@@ -247,6 +247,7 @@ class _GameMarquee extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     Widget card(String emoji, String name, Color color, int i) => SizedBox(
       width: 118,
+      height: 126,
       child: Sticker(
         color: color,
         depth: 4,
@@ -327,7 +328,7 @@ class _EmailField extends StatelessWidget {
       controller: controller,
       keyboardType: TextInputType.emailAddress,
       autofillHints: const [AutofillHints.email],
-      decoration: const InputDecoration(labelText: 'Email'),
+      decoration: const InputDecoration(labelText: 'email'),
       validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null,
     );
   }

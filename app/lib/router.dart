@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/models.dart';
+import 'features/arcade/arcade_screen.dart';
+import 'features/arcade/match_screen.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/auth_screens.dart';
 import 'features/game/game_screen.dart';
@@ -34,8 +36,9 @@ String? _destination(Me? me, String location) {
   if (me == null) return const {'/login', '/register'}.contains(location) ? null : '/login';
   if (!me.onboarded) return location == '/onboarding' ? null : '/onboarding';
   if (!me.paired) return const {'/pair', '/interests'}.contains(location) ? null : '/pair';
-  const allowed = {'/home', '/game', '/interests', '/history'};
-  return allowed.contains(location) || location.startsWith('/history/') ? null : '/home';
+  const allowed = {'/home', '/game', '/interests', '/history', '/arcade'};
+  final nested = location.startsWith('/history/') || location.startsWith('/arcade/');
+  return allowed.contains(location) || nested ? null : '/home';
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -58,6 +61,11 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       GoRoute(path: '/game', builder: (_, _) => const GameScreen()),
       GoRoute(path: '/history', builder: (_, _) => const HistoryScreen()),
+      GoRoute(path: '/arcade', builder: (_, _) => const ArcadeScreen()),
+      GoRoute(
+        path: '/arcade/:id',
+        builder: (_, state) => MatchScreen(matchId: state.pathParameters['id']!),
+      ),
       GoRoute(
         path: '/history/:id',
         builder: (_, state) => HistoryDetailScreen(gameId: state.pathParameters['id']!),

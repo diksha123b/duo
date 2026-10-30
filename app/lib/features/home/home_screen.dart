@@ -10,6 +10,7 @@ import '../../ui/relationship_style.dart';
 import '../../ui/states.dart';
 import '../../ui/sticker.dart';
 import '../../ui/theme.dart';
+import '../arcade/arcade_controller.dart';
 import '../auth/auth_controller.dart';
 import '../game/game_controller.dart';
 import '../pairing/pair_controller.dart';
@@ -110,6 +111,8 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const SizedBox(height: 22),
+                const FadeIn(delay: Duration(milliseconds: 180), child: _ArcadeTeaser()),
                 if (lineup.isNotEmpty) ...[
                   const SizedBox(height: 26),
                   FadeIn(
@@ -473,7 +476,7 @@ class _GameShelf extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('the games', style: text.titleLarge),
+        Text('the daily games', style: text.titleLarge),
         Text('a new one lands every day. you never know which.', style: text.bodyMedium),
         const SizedBox(height: 12),
         for (final cat in GameCategory.values) ...[
@@ -542,6 +545,42 @@ class _ShelfCard extends StatelessWidget {
             Text(style.tagline, style: text.bodySmall?.copyWith(color: DuoColors.ink), maxLines: 2),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The way into the live arcade, with a nudge when it's your move somewhere.
+class _ArcadeTeaser extends ConsumerWidget {
+  const _ArcadeTeaser();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final waiting = ref.watch(arcadeProvider).value?.active.where((m) => m.yourTurn).length ?? 0;
+    final text = Theme.of(context).textTheme.apply(bodyColor: DuoColors.ink, displayColor: DuoColors.ink);
+    return Sticker(
+      color: DuoColors.grape,
+      pattern: StickerPattern.stars,
+      tilt: 1,
+      onTap: () => context.push('/arcade'),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('the arcade', style: text.headlineSmall),
+                Text(
+                  waiting > 0
+                      ? 'it’s your move in $waiting ${waiting == 1 ? 'game' : 'games'} 👀'
+                      : 'chess, ludo, word tiles & more. live.',
+                  style: text.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+          const Text('♟️🎲🔤', style: TextStyle(fontSize: 28)),
+        ],
       ),
     );
   }

@@ -329,3 +329,90 @@ class HistoryItem {
     summary: GameSummary.fromJson(j['summary'] as Map<String, dynamic>?),
   );
 }
+
+/// Live, turn-by-turn games the pair can play any time.
+enum ArcadeKind {
+  chess('CHESS'),
+  ludo('LUDO'),
+  wordTiles('WORD_TILES'),
+  fourInARow('FOUR_IN_A_ROW'),
+  dotsAndBoxes('DOTS_AND_BOXES'),
+  ticTacToe('TIC_TAC_TOE');
+
+  const ArcadeKind(this.wire);
+  final String wire;
+
+  static ArcadeKind parse(String s) => values.firstWhere((k) => k.wire == s);
+}
+
+enum MatchResult { won, lost, draw }
+
+class MatchInfo {
+  const MatchInfo({
+    required this.id,
+    required this.kind,
+    required this.active,
+    required this.yourTurn,
+    this.result,
+    this.version = 0,
+    this.seat = 0,
+    this.view = const {},
+  });
+
+  final String id;
+  final ArcadeKind kind;
+  final bool active;
+  final bool yourTurn;
+  final MatchResult? result;
+  final int version;
+
+  /// 0 moves first (white in chess).
+  final int seat;
+
+  /// Game-specific board state from the server, already stripped of anything
+  /// this player may not see.
+  final Map<String, dynamic> view;
+
+  factory MatchInfo.fromJson(Map<String, dynamic> j) => MatchInfo(
+    id: j['id'] as String,
+    kind: ArcadeKind.parse(j['kind'] as String),
+    active: j['status'] == 'ACTIVE',
+    yourTurn: j['yourTurn'] as bool,
+    result: switch (j['result']) {
+      'won' => MatchResult.won,
+      'lost' => MatchResult.lost,
+      'draw' => MatchResult.draw,
+      _ => null,
+    },
+    version: j['version'] as int? ?? 0,
+    seat: j['seat'] as int? ?? 0,
+    view: Map<String, dynamic>.from(j['view'] as Map? ?? const {}),
+  );
+}
+
+class ArcadeRecord {
+  const ArcadeRecord(this.you, this.them, this.draws);
+
+  final int you;
+  final int them;
+  final int draws;
+}
+
+class ArcadeLobby {
+  const ArcadeLobby({required this.active, required this.recent, required this.record});
+
+  final List<MatchInfo> active;
+  final List<MatchInfo> recent;
+  final Map<ArcadeKind, ArcadeRecord> record;
+
+  MatchInfo? activeOf(ArcadeKind kind) => active.where((m) => m.kind == kind).firstOrNull;
+
+  factory ArcadeLobby.fromJson(Map<String, dynamic> j) => ArcadeLobby(
+    active: (j['active'] as List).map((m) => MatchInfo.fromJson(m as Map<String, dynamic>)).toList(),
+    recent: (j['recent'] as List).map((m) => MatchInfo.fromJson(m as Map<String, dynamic>)).toList(),
+    record: {
+      for (final e in (j['record'] as Map<String, dynamic>).entries)
+        ArcadeKind.parse(e.key): ArcadeRecord(e.value['you'] as int, e.value['them'] as int, e.value['draws'] as int),
+    },
+  );
+}

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 
 import '../config.dart';
+import '../features/arcade/arcade_controller.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/game/game_controller.dart';
 import '../features/history/history_controller.dart';
@@ -74,6 +75,13 @@ class RealtimeController extends Notifier<RealtimeState> {
         // Completing today's game moves the streak and adds a history entry.
         ref.invalidate(pairProvider);
         ref.invalidate(historyProvider);
+      })
+      ..on('match:updated', (data) {
+        // Their move arrived: update the open board, and the lobby badges.
+        final match = Map<String, dynamic>.from((data as Map)['match'] as Map);
+        final id = match['id'] as String;
+        if (ref.exists(matchProvider(id))) ref.read(matchProvider(id).notifier).applyServer(match);
+        ref.invalidate(arcadeProvider);
       })
       ..on('pair:changed', (_) async {
         await ref.read(authProvider.notifier).reload();
