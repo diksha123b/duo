@@ -67,22 +67,62 @@ void main() {
     expect(sent.single, {'from': 'e2', 'to': 'e4', 'promotion': 'q'});
   });
 
-  testWidgets('ludo offers the roll on your turn', (tester) async {
+  testWidgets('ludo: the die rolls itself; you only pick a token', (tester) async {
     final sent = <Map<String, dynamic>>[];
     final view = {
       'tokens': [
         [-1, -1, -1, -1],
         [-1, -1, -1, -1],
       ],
-      'roll': null,
-      'last': null,
-      'movable': <int>[],
+      'roll': 6,
+      'last': {'seat': 0, 'roll': 6},
+      'movable': [0, 1, 2, 3],
+      'dice': [
+        {'value': 6, 'count': 1},
+        null,
+      ],
+      'feed': [
+        {'seat': 0, 'value': 6, 'result': 'waiting'},
+      ],
     };
     await tester.pumpWidget(wrap(LudoBoard(match: match(ArcadeKind.ludo, view), send: (m) async => sent.add(m))));
-    expect(find.text('tap to roll'), findsOneWidget);
+    expect(find.text('a six! 🎉 move a glowing token'), findsOneWidget);
+
+    // Tapping the die does nothing: there is no manual roll.
     await tester.tap(find.byType(Die).first);
     await tester.pump();
-    expect(sent.single, {'type': 'roll'});
+    expect(sent, isEmpty);
+
+    // Your tokens are the only thing to tap.
+    await tester.tap(find.byType(AnimatedScale).first);
+    await tester.pump();
+    expect(sent.single, {'type': 'move', 'token': 0});
+  });
+
+  testWidgets('ludo lists recent rolls, including automatic passes', (tester) async {
+    final view = {
+      'tokens': [
+        [-1, -1, -1, -1],
+        [-1, -1, -1, -1],
+      ],
+      'roll': 6,
+      'last': null,
+      'movable': <int>[],
+      'dice': [
+        {'value': 4, 'count': 3},
+        {'value': 6, 'count': 1},
+      ],
+      'feed': [
+        {'seat': 0, 'value': 2, 'result': 'stuck'},
+        {'seat': 0, 'value': 4, 'result': 'stuck'},
+        {'seat': 1, 'value': 6, 'result': 'waiting'},
+      ],
+    };
+    await tester.pumpWidget(
+      wrap(LudoBoard(match: match(ArcadeKind.ludo, view, yourTurn: false), send: (_) async {}, otherName: 'Ravi')),
+    );
+    expect(find.text('🎲 you 2 · no move'), findsOneWidget);
+    expect(find.text('🎲 ravi 6! · choosing…'), findsOneWidget);
   });
 
   testWidgets("ludo shows both players' latest rolls", (tester) async {

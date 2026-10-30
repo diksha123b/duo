@@ -90,59 +90,103 @@ describe('chess', () => {
 });
 
 describe('ludo', () => {
-  it('needs a six to leave base; otherwise the turn passes', () => {
-    const s = ludo.apply(ludo.init(noRng), 0, { type: 'roll' }, scripted(2)); // rolls 3
-    expect(s.turn).toBe(1);
-    expect(s.last).toMatchObject({ roll: 3, passed: true });
-  });
+  // Scripted dice: each number is (face - 1).
+  const dice = (...faces: number[]) => scripted(...faces.map((f) => f - 1));
 
-  it("keeps both players' latest rolls visible to both", () => {
-    let s = ludo.apply(ludo.init(noRng), 0, { type: 'roll' }, scripted(2)); // seat 0 rolls 3, passes
-    s = ludo.apply(s, 1, { type: 'roll' }, scripted(0)); // seat 1 rolls 1, passes
-    for (const seat of [0, 1] as const) {
-      expect((ludo.view(s, seat) as { dice: unknown }).dice).toEqual([
-        { value: 3, count: 1 },
-        { value: 1, count: 1 },
-      ]);
-    }
-    s = ludo.apply(s, 0, { type: 'roll' }, scripted(2)); // 3 again: count still moves
-    expect(s.dice?.[0]).toEqual({ value: 3, count: 2 });
-  });
-
-  it('a six brings a token out and earns another turn', () => {
-    let s = ludo.apply(ludo.init(noRng), 0, { type: 'roll' }, scripted(5)); // 6
+  it('rolls for the first player as the game starts', () => {
+    const s = ludo.init(dice(6));
+    expect(s).toMatchObject({ turn: 0, roll: 6, dice: [{ value: 6, count: 1 }, null] });
     expect((ludo.view(s, 0) as { movable: number[] }).movable).toEqual([0, 1, 2, 3]);
-    s = ludo.apply(s, 0, { type: 'move', token: 2 }, noRng);
-    expect(s.tokens[0][2]).toBe(0);
+    expect((ludo.view(s, 1) as { movable: number[] }).movable).toEqual([]);
+  });
+
+  it('gives three tries for a six while everything is in base, then passes', () => {
+    // Seat 0: 2, 3, 4 (no six) → seat 1: 6.
+    const s = ludo.init(dice(2, 3, 4, 6));
+    expect(s.turn).toBe(1);
+    expect(s.roll).toBe(6);
+    expect(s.feed?.map((r) => [r.seat, r.value, r.result])).toEqual([
+      [0, 2, 'stuck'],
+      [0, 3, 'stuck'],
+      [0, 4, 'stuck'],
+      [1, 6, 'waiting'],
+    ]);
+    // Both players see both dice.
+    expect((ludo.view(s, 0) as { dice: unknown }).dice).toEqual([
+      { value: 4, count: 3 },
+      { value: 6, count: 1 },
+    ]);
+  });
+
+  it('players only move tokens; there is no manual roll', () => {
+    const s = ludo.init(dice(6));
+    expect(ludo.move.safeParse({ type: 'roll' }).success).toBe(false);
+    expect(() => ludo.apply(s, 0, { type: 'move', token: 9 } as never, noRng)).toThrow();
+  });
+
+  it('a six brings a token out, earns another turn, and rolls again by itself', () => {
+    let s = ludo.init(dice(6));
+    s = ludo.apply(s, 0, { type: 'move', token: 2 }, dice(4));
+    expect(s.tokens[0][2]).toBe(4 - 4); // came out at 0…
+    expect(s.turn).toBe(0); // …bonus turn…
+    expect(s.roll).toBe(4); // …already rolled
+    expect(s.feed?.at(-2)).toMatchObject({ seat: 0, value: 6, result: 'moved', token: 2 });
+  });
+
+  it('after a normal move the other player is rolled for straight away', () => {
+    let s = ludo.init(dice(6));
+    s = ludo.apply(s, 0, { type: 'move', token: 0 }, dice(3)); // bonus roll: 3
+    s = ludo.apply(s, 0, { type: 'move', token: 0 }, dice(5, 1, 1)); // seat 1 gets 5, 1, 1: stuck
+    expect(s.tokens[0][0]).toBe(3);
+    // Seat 1 couldn't leave base in three tries, so it's back to seat 0, rolled for.
     expect(s.turn).toBe(0);
+    expect(s.roll).not.toBeNull();
   });
 
   it('captures on unsafe squares but not safe ones', () => {
-    const base = ludo.init(noRng);
-    // Seat 1's token sits 3 squares ahead of seat 0's token on the shared track.
+    const base = ludo.init(dice(6));
     base.tokens[0][0] = 2;
     base.tokens[1][0] = (START[0] + 5 - START[1] + 52) % 52;
-    let s = ludo.apply(base, 0, { type: 'roll' }, scripted(2)); // 3
-    s = ludo.apply(s, 0, { type: 'move', token: 0 }, noRng);
+    base.roll = 3;
+    const s = ludo.apply(base, 0, { type: 'move', token: 0 }, dice(1));
     expect(s.tokens[1][0]).toBe(-1);
     expect(s.turn).toBe(0); // capture earns another go
+    expect(s.feed?.at(-2)).toMatchObject({ captured: true });
 
-    const safe = ludo.init(noRng);
+    const safe = ludo.init(dice(6));
     safe.tokens[0][0] = 5;
     safe.tokens[1][0] = (START[0] + 8 - START[1] + 52) % 52; // square 8 is a star
-    let t = ludo.apply(safe, 0, { type: 'roll' }, scripted(2));
-    t = ludo.apply(t, 0, { type: 'move', token: 0 }, noRng);
-    expect(t.tokens[1][0]).not.toBe(-1);
+    safe.roll = 3;
+    expect(ludo.apply(safe, 0, { type: 'move', token: 0 }, dice(1)).tokens[1][0]).not.toBe(-1);
   });
 
   it('needs an exact roll to get home, and wins with four home', () => {
-    const s = ludo.init(noRng);
+    const s = ludo.init(dice(6));
     s.tokens[0] = [HOME, HOME, HOME, HOME - 2];
-    const over = ludo.apply(s, 0, { type: 'roll' }, scripted(3)); // 4: too far
-    expect(over.turn).toBe(1);
-    let ok = ludo.apply(s, 0, { type: 'roll' }, scripted(1)); // 2: exact
-    ok = ludo.apply(ok, 0, { type: 'move', token: 3 }, noRng);
-    expect(ludo.outcome(ok)).toEqual({ turn: null, winner: 0 });
+    s.roll = 2;
+    const won = ludo.apply(s, 0, { type: 'move', token: 3 }, noRng);
+    expect(ludo.outcome(won)).toEqual({ turn: null, winner: 0 });
+    expect(won.roll).toBeNull(); // nobody is rolled for after the game ends
+
+    const tooFar = ludo.init(dice(6));
+    tooFar.tokens[0] = [HOME, HOME, HOME, HOME - 2];
+    tooFar.roll = null;
+    tooFar.feed = [];
+    const settled = ludo.settle!(tooFar, dice(4, 6));
+    // A 4 overshoots home, so the turn passes straight to seat 1, who rolls a 6.
+    expect(settled.feed?.map((r) => [r.seat, r.value, r.result])).toEqual([
+      [0, 4, 'stuck'],
+      [1, 6, 'waiting'],
+    ]);
+    expect(settled.turn).toBe(1);
+  });
+
+  it('settles old games that were waiting for a manual roll', () => {
+    const old = ludo.init(dice(6));
+    old.roll = null;
+    const settled = ludo.settle!(old, dice(6));
+    expect(settled.roll).toBe(6);
+    expect(ludo.settle!(settled, noRng)).toBe(settled); // nothing more to do
   });
 });
 

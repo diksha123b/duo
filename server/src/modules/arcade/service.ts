@@ -26,7 +26,22 @@ export class ArcadeService {
     const pair = await this.pairOf(userId);
     const match = await this.prisma.match.findUnique({ where: { id: matchId } });
     if (!match || match.pairId !== pair.id) throw notFound('MATCH_NOT_FOUND', 'Game not found');
-    return match;
+    return this.settle(match);
+  }
+
+  /** Lets an engine catch up on automatic steps (like an old ludo game's roll) and saves them. */
+  private async settle(match: Match): Promise<Match> {
+    const engine = ENGINES[match.kind];
+    if (!engine.settle || match.status !== 'ACTIVE') return match;
+    const state = engine.settle(match.state, this.rng);
+    if (state === match.state) return match;
+    const { count } = await this.prisma.match.updateMany({
+      where: { id: match.id, version: match.version },
+      data: { state, version: { increment: 1 } },
+    });
+    // Someone else settled it first: use theirs.
+    if (count === 0) return this.prisma.match.findUniqueOrThrow({ where: { id: match.id } });
+    return { ...match, state, version: match.version + 1 };
   }
 
   /** Active games plus a few recent finished ones. */

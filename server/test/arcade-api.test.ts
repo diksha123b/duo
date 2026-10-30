@@ -104,3 +104,19 @@ describe('arcade API', () => {
     expect(res.json().error.code).toBe('NOT_PAIRED');
   });
 });
+
+describe('ludo over the API', () => {
+  it('the starter is already rolled for; the other player cannot move', async () => {
+    const { a, b } = await pairUp();
+    const m = (await start(a, 'LUDO')).json().match;
+    expect(m.view.dice[0]).not.toBeNull();
+    const fromB = (
+      await ctx.app.inject({ method: 'GET', url: `/arcade/matches/${m.id}`, headers: auth(b) })
+    ).json().match;
+    // B sees A's die too.
+    expect(fromB.view.dice[0]).toEqual(m.view.dice[0]);
+    expect((await move(b, m.id, fromB.version, { type: 'roll' })).json().error.code).toMatch(
+      /NOT_YOUR_TURN|ILLEGAL_MOVE/,
+    );
+  });
+});

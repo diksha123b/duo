@@ -67,22 +67,18 @@ class LudoBoard extends BoardWidget {
     final mine = dice[match.seat];
     final theirs = dice[1 - match.seat];
     final who = last == null ? '' : (isMine(last['seat']) ? 'you' : otherName);
+    // The die rolls itself; the only thing to do is pick a token.
     final String status;
-    if (myTurn && roll != null) {
-      status = roll == 6 ? 'a six! 🎉 move a glowing token' : 'you rolled $roll! tap a glowing token';
-    } else if (myTurn) {
-      status = last?['passed'] == true && !isMine(last!['seat'])
-          ? '$otherName rolled ${last['roll']} and couldn’t move. your turn!'
-          : 'your turn. tap your die!';
-    } else if (last == null) {
-      status = 'six to leave base · land on them to send them home';
-    } else if (last['captured'] == true) {
+    if (!match.active) {
+      status = '';
+    } else if (myTurn && roll != null) {
+      status = roll == 6 ? 'a six! 🎉 move a glowing token' : 'you rolled $roll. tap a glowing token';
+    } else if (last?['captured'] == true) {
       status = '$who sent a token home! 💥';
-    } else if (last['passed'] == true) {
-      status = '$who rolled ${last['roll']} and couldn’t move';
     } else {
-      status = match.active ? '$otherName is rolling…' : '';
+      status = '$otherName rolled ${roll ?? '…'}. their move';
     }
+    final feed = (v['feed'] as List? ?? const []).cast<Map>();
 
     return Column(
       children: [
@@ -140,14 +136,7 @@ class LudoBoard extends BoardWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _DiePanel(
-              label: 'you',
-              die: mine,
-              color: youColor,
-              active: myTurn,
-              // Your die is the roll button.
-              onTap: myTurn && roll == null ? () => send({'type': 'roll'}) : null,
-            ),
+            _DiePanel(label: 'you', die: mine, color: youColor, active: myTurn),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(top: 24),
@@ -157,6 +146,10 @@ class LudoBoard extends BoardWidget {
             _DiePanel(label: otherName.toLowerCase(), die: theirs, color: themColor, active: match.active && !myTurn),
           ],
         ),
+        if (feed.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _RollFeed(feed: feed, isMine: isMine, otherName: otherName),
+        ],
       ],
     );
   }
@@ -242,13 +235,12 @@ class _LudoPainter extends CustomPainter {
 
 /// One player's die with their name, kept on screen for both players.
 class _DiePanel extends StatelessWidget {
-  const _DiePanel({required this.label, required this.die, required this.color, required this.active, this.onTap});
+  const _DiePanel({required this.label, required this.die, required this.color, required this.active});
 
   final String label;
   final Map? die;
   final Color color;
   final bool active;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -268,15 +260,59 @@ class _DiePanel extends StatelessWidget {
               count: die?['count'] as int? ?? 0,
               color: color,
               size: 68,
-              glowing: onTap != null,
-              onTap: onTap,
+              // Whoever's turn it is: their die glows.
+              glowing: active,
             ),
           ),
           const SizedBox(height: 10),
-          Text(
-            onTap != null ? 'tap to roll' : (value == null ? 'no roll yet' : 'rolled $value'),
-            style: text.bodySmall,
-          ),
+          Text(value == null ? 'no roll yet' : 'rolled $value', style: text.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+/// Every recent roll, newest first, so automatic passes never go unseen.
+class _RollFeed extends StatelessWidget {
+  const _RollFeed({required this.feed, required this.isMine, required this.otherName});
+
+  final List<Map> feed;
+  final bool Function(Object?) isMine;
+  final String otherName;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme.apply(bodyColor: DuoColors.ink);
+    String describe(Map r) {
+      final who = isMine(r['seat']) ? 'you' : otherName.toLowerCase();
+      return switch (r['result']) {
+        'stuck' => '$who ${r['value']} · no move',
+        'moved' when r['captured'] == true => '$who ${r['value']} · captured! 💥',
+        'moved' => '$who ${r['value']} · moved',
+        _ => '$who ${r['value']}${r['value'] == 6 ? '!' : ''} · choosing…',
+      };
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final (i, r) in feed.reversed.take(6).indexed)
+            AnimatedOpacity(
+              opacity: 1 - i * 0.12,
+              duration: const Duration(milliseconds: 200),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isMine(r['seat']) ? youColor : themColor,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: DuoColors.line(context), width: 1.5),
+                ),
+                child: Text('🎲 ${describe(r)}', style: text.labelLarge),
+              ),
+            ),
         ],
       ),
     );

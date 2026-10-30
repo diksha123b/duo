@@ -28,6 +28,12 @@ export interface Engine<S, M> {
   move: z.ZodType<M>;
   apply(state: S, seat: Seat, move: M, rng: Rng): S;
   outcome(state: S): Outcome;
+  /**
+   * Optional: advance anything that happens without a player (e.g. an
+   * automatic dice roll) on a stored state. Returns the same object when
+   * there is nothing to do.
+   */
+  settle?(state: S, rng: Rng): S;
   /** What `seat` may see: hidden information (racks, the bag) is removed. */
   view(state: S, seat: Seat): unknown;
 }
