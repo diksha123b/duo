@@ -11,6 +11,7 @@ import '../../ui/sticker.dart';
 import '../../ui/theme.dart';
 import '../auth/auth_controller.dart';
 import 'pair_controller.dart';
+import 'relationship_picker.dart';
 
 class PairingScreen extends ConsumerStatefulWidget {
   const PairingScreen({super.key});
@@ -21,8 +22,7 @@ class PairingScreen extends ConsumerStatefulWidget {
 
 class _PairingScreenState extends ConsumerState<PairingScreen> {
   final _code = TextEditingController();
-  Relationship? _relationship;
-  FamilyRole? _role;
+  RelationshipChoice? _choice;
   Invite? _invite;
   String? _inviteError;
   String? _joinError;
@@ -35,12 +35,14 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     super.dispose();
   }
 
-  bool get _ready => _relationship != null && (_relationship != Relationship.parentChild || _role != null);
+  bool get _ready => _choice?.complete ?? false;
 
   Future<void> _createInvite() async {
     setState(() => _inviteError = null);
     try {
-      final invite = await ref.read(pairProvider.notifier).createInvite(_relationship!, iAm: _role);
+      final invite = await ref
+          .read(pairProvider.notifier)
+          .createInvite(_choice!.tone, iAm: _choice!.role, label: _choice!.label);
       setState(() => _invite = invite);
       // The socket tells us when they join; polling is a backstop for flaky connections.
       _poll ??= Timer.periodic(const Duration(seconds: 8), (_) {
@@ -68,7 +70,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final style = _relationship == null ? null : RelationshipStyle.of(_relationship!);
+    final style = _choice == null ? null : RelationshipStyle.of(_choice!.tone);
 
     return Scaffold(
       appBar: AppBar(
@@ -100,7 +102,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
                 Text('who’s your duo?', style: text.headlineMedium, textAlign: TextAlign.center),
                 const SizedBox(height: 4),
                 Text(
-                  'your partner, your bestie, your sibling, your mum. anyone you’d play with every day.',
+                  'partner, bestie, cousin, grandma, roommate, coworker… anyone you’d play with every day.',
                   style: text.bodyLarge,
                   textAlign: TextAlign.center,
                 ),
@@ -112,43 +114,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
                       Text('invite someone', style: text.titleLarge),
                       const SizedBox(height: 12),
                       if (_invite == null) ...[
-                        Text('they are my…', style: text.labelLarge),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final r in Relationship.values)
-                              ChoiceChip(
-                                label: Text('${RelationshipStyle.of(r).emoji} ${_choiceLabel(r)}'),
-                                selected: _relationship == r,
-                                onSelected: (_) => setState(() {
-                                  _relationship = r;
-                                  if (r != Relationship.parentChild) _role = null;
-                                }),
-                              ),
-                          ],
-                        ),
-                        if (_relationship == Relationship.parentChild) ...[
-                          const SizedBox(height: 14),
-                          Text('and I’m the…', style: text.labelLarge),
-                          const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            children: [
-                              ChoiceChip(
-                                label: const Text('👩 parent'),
-                                selected: _role == FamilyRole.parent,
-                                onSelected: (_) => setState(() => _role = FamilyRole.parent),
-                              ),
-                              ChoiceChip(
-                                label: const Text('🧒 kid'),
-                                selected: _role == FamilyRole.child,
-                                onSelected: (_) => setState(() => _role = FamilyRole.child),
-                              ),
-                            ],
-                          ),
-                        ],
+                        RelationshipPicker(onChanged: (c) => setState(() => _choice = c)),
                         if (_inviteError != null) ...[
                           const SizedBox(height: 12),
                           Text(_inviteError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
@@ -160,7 +126,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
                           onPressed: _ready ? _createInvite : null,
                         ),
                       ] else
-                        _InviteCode(invite: _invite!, style: style!),
+                        _InviteCode(invite: _invite!, tone: _choice!.tone),
                     ],
                   ),
                 ),
@@ -199,21 +165,13 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
       ),
     );
   }
-
-  static String _choiceLabel(Relationship r) => switch (r) {
-    Relationship.partners => 'partner',
-    Relationship.bestFriends => 'best friend',
-    Relationship.friends => 'friend',
-    Relationship.siblings => 'sibling',
-    Relationship.parentChild => 'parent / kid',
-  };
 }
 
 class _InviteCode extends StatelessWidget {
-  const _InviteCode({required this.invite, required this.style});
+  const _InviteCode({required this.invite, required this.tone});
 
   final Invite invite;
-  final RelationshipStyle style;
+  final Relationship tone;
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +179,10 @@ class _InviteCode extends StatelessWidget {
     final hours = invite.expiresAt.difference(DateTime.now()).inHours;
     return Column(
       children: [
-        Tag('${style.emoji} ${style.label}', color: style.left),
+        Tag(
+          '${describePair(tone, invite.label).$1} ${describePair(tone, invite.label).$2}',
+          color: RelationshipStyle.of(tone).left,
+        ),
         const SizedBox(height: 12),
         Sticker(
           color: DuoColors.sunflower,

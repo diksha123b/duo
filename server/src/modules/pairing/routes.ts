@@ -28,11 +28,20 @@ const joinBody = z.object({
 
 const gone = (code: string, message: string) => new AppError(410, code, message);
 
-const RELATIONSHIPS = ['PARTNERS', 'BEST_FRIENDS', 'FRIENDS', 'SIBLINGS', 'PARENT_CHILD'] as const;
+const RELATIONSHIPS = [
+  'PARTNERS',
+  'BEST_FRIENDS',
+  'FRIENDS',
+  'SIBLINGS',
+  'PARENT_CHILD',
+  'COLLEAGUES',
+] as const;
 // For a parent and child, say which one you are; ignored otherwise.
 const relationshipBody = z
   .object({
     relationship: z.enum(RELATIONSHIPS).default('FRIENDS'),
+    // What they call each other: "cousins", "grandma & me", anything.
+    label: z.string().trim().min(1).max(30).optional(),
     iAm: z.enum(['PARENT', 'CHILD']).optional(),
   })
   .refine((b) => b.relationship !== 'PARENT_CHILD' || b.iAm, {
@@ -40,8 +49,18 @@ const relationshipBody = z
     path: ['iAm'],
   });
 
-function serializeInvite(invite: { code: string; expiresAt: Date; relationship: string }) {
-  return { code: invite.code, expiresAt: invite.expiresAt, relationship: invite.relationship };
+function serializeInvite(invite: {
+  code: string;
+  expiresAt: Date;
+  relationship: string;
+  relationshipLabel: string | null;
+}) {
+  return {
+    code: invite.code,
+    expiresAt: invite.expiresAt,
+    relationship: invite.relationship,
+    label: invite.relationshipLabel,
+  };
 }
 
 export async function pairingRoutes(app: FastifyInstance) {
@@ -63,6 +82,7 @@ export async function pairingRoutes(app: FastifyInstance) {
         createdAt: pair.createdAt,
         timezone: pair.timezone,
         relationship: pair.relationship,
+        relationshipLabel: pair.relationshipLabel,
         myRole:
           pair.relationship === 'PARENT_CHILD' ? (pair.parentId === req.userId ? 'PARENT' : 'CHILD') : null,
         streak: {
@@ -103,6 +123,7 @@ export async function pairingRoutes(app: FastifyInstance) {
       const body = parse(relationshipBody, req.body ?? {});
       const kind = {
         relationship: body.relationship,
+        relationshipLabel: body.label ?? null,
         creatorIsParent: body.relationship === 'PARENT_CHILD' ? body.iAm === 'PARENT' : null,
       };
       const me = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
@@ -177,6 +198,7 @@ export async function pairingRoutes(app: FastifyInstance) {
             userAId: creator.id,
             userBId: me.id,
             relationship: invite.relationship,
+            relationshipLabel: invite.relationshipLabel,
             parentId:
               invite.relationship === 'PARENT_CHILD' ? (invite.creatorIsParent ? creator.id : me.id) : null,
             timezone: creator.profile?.timezone ?? 'UTC',
@@ -217,11 +239,12 @@ export async function pairingRoutes(app: FastifyInstance) {
       where: { id: pair.id },
       data: {
         relationship: body.relationship,
+        relationshipLabel: body.label ?? null,
         parentId: body.relationship === 'PARENT_CHILD' ? (body.iAm === 'PARENT' ? req.userId : other) : null,
       },
     });
     app.events.emit('pair:changed', { pairId: pair.id });
-    return { pair: { id: pair.id, relationship: body.relationship } };
+    return { pair: { id: pair.id, relationship: body.relationship, relationshipLabel: body.label ?? null } };
   });
 
   app.delete('/pair', { preHandler: app.authenticate }, async (req, reply) => {

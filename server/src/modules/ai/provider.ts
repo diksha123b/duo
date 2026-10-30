@@ -140,8 +140,10 @@ function relationshipLine(pair: Pair): string {
       return 'They are friends getting to know each other better. Keep it light and inclusive. Nothing romantic.';
     case 'SIBLINGS':
       return 'They are siblings. Playful sibling rivalry and childhood memories work well. Nothing romantic.';
+    case 'COLLEAGUES':
+      return 'They know each other from work or study. Friendly and fun, office-safe, nothing romantic or too personal.';
     case 'PARENT_CHILD':
-      return `Partner ${parent} is the parent and partner ${child} is their child, who may be young. Everything must suit a child aged 8+: warm, family-friendly, simple words, nothing romantic or mature.`;
+      return `Partner ${parent} is the grown-up (a parent, grandparent, aunt, uncle or similar) and partner ${child} is the younger one, who may be a child. Everything must suit a child aged 8+: warm, family-friendly, simple words, nothing romantic or mature.`;
   }
 }
 
@@ -157,6 +159,8 @@ async function buildPrompt(prisma: PrismaClient, pair: Pair, type: GameTypeName)
     describe(pair.userAId, 'A'),
     describe(pair.userBId, 'B'),
     relationshipLine(pair),
+    // Their own words for each other, quoted as data.
+    pair.relationshipLabel ? `They describe themselves as: ${JSON.stringify(pair.relationshipLabel)}` : '',
     '',
     INSTRUCTIONS[type],
     'Give the game a short, fun title (under 50 characters) that hints at their shared interests.',

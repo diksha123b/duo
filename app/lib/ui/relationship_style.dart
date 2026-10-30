@@ -50,6 +50,13 @@ class RelationshipStyle {
       left: DuoColors.tangerine,
       right: DuoColors.mint,
     ),
+    Relationship.colleagues => const RelationshipStyle(
+      label: 'work buddies',
+      emoji: '💼',
+      tagline: 'the best part of the workday.',
+      left: DuoColors.sky,
+      right: DuoColors.tangerine,
+    ),
     Relationship.parentChild => const RelationshipStyle(
       label: 'parent & child',
       emoji: '🫶',

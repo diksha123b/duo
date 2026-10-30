@@ -58,7 +58,8 @@ enum Relationship {
   bestFriends('BEST_FRIENDS'),
   friends('FRIENDS'),
   siblings('SIBLINGS'),
-  parentChild('PARENT_CHILD');
+  parentChild('PARENT_CHILD'),
+  colleagues('COLLEAGUES');
 
   const Relationship(this.wire);
   final String wire;
@@ -75,6 +76,7 @@ class PairInfo {
     required this.currentStreak,
     required this.longestStreak,
     this.relationship = Relationship.friends,
+    this.relationshipLabel,
     this.myRole,
   });
 
@@ -83,6 +85,9 @@ class PairInfo {
   final int currentStreak;
   final int longestStreak;
   final Relationship relationship;
+
+  /// What they call each other ("cousins", "grandma & me"), if they said.
+  final String? relationshipLabel;
 
   /// Parent & child only.
   final FamilyRole? myRole;
@@ -95,6 +100,7 @@ class PairInfo {
       currentStreak: streak['current'] as int,
       longestStreak: streak['longest'] as int,
       relationship: Relationship.parse(j['relationship'] as String?),
+      relationshipLabel: j['relationshipLabel'] as String?,
       myRole: switch (j['myRole']) {
         'PARENT' => FamilyRole.parent,
         'CHILD' => FamilyRole.child,
@@ -115,13 +121,17 @@ class LineupDay {
 }
 
 class Invite {
-  const Invite({required this.code, required this.expiresAt});
+  const Invite({required this.code, required this.expiresAt, this.label});
 
   final String code;
   final DateTime expiresAt;
+  final String? label;
 
-  factory Invite.fromJson(Map<String, dynamic> j) =>
-      Invite(code: j['code'] as String, expiresAt: DateTime.parse(j['expiresAt'] as String));
+  factory Invite.fromJson(Map<String, dynamic> j) => Invite(
+    code: j['code'] as String,
+    expiresAt: DateTime.parse(j['expiresAt'] as String),
+    label: j['label'] as String?,
+  );
 }
 
 enum GameType {

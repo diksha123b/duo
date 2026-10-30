@@ -64,27 +64,31 @@ model Profile {
   @@map("profiles")
 }
 
-// Who the two people are to each other. Shapes copy, question choice and
-// the tone of generated games (e.g. nothing romantic between siblings).
+// The *tone* of the pair, which shapes question choice and generated games
+// (e.g. nothing romantic between siblings). The words people use for each
+// other live in `relationshipLabel` and can be anything ("cousins",
+// "grandma & me", "gym buddies").
 enum Relationship {
   PARTNERS
   BEST_FRIENDS
   FRIENDS
   SIBLINGS
   PARENT_CHILD
+  COLLEAGUES
 }
 
 model Pair {
-  id           String       @id @default(uuid()) @db.Uuid
-  relationship Relationship @default(FRIENDS)
+  id                String       @id @default(uuid()) @db.Uuid
+  relationship      Relationship @default(FRIENDS)
+  relationshipLabel String?      @map("relationship_label")
   // PARENT_CHILD only: which member is the parent.
-  parentId     String?      @map("parent_id") @db.Uuid
-  userAId      String       @map("user_a_id") @db.Uuid
-  userBId      String       @map("user_b_id") @db.Uuid
+  parentId          String?      @map("parent_id") @db.Uuid
+  userAId           String       @map("user_a_id") @db.Uuid
+  userBId           String       @map("user_b_id") @db.Uuid
   // The pair's "day" is computed in this zone (inviter's zone at pairing).
-  timezone     String       @default("UTC")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  endedAt      DateTime?    @map("ended_at")
+  timezone          String       @default("UTC")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  endedAt           DateTime?    @map("ended_at")
 
   members        User[]          @relation("CurrentPair")
   games          Game[]
@@ -98,16 +102,17 @@ model Pair {
 }
 
 model Invite {
-  id              String       @id @default(uuid()) @db.Uuid
-  code            String       @unique
-  creatorId       String       @map("creator_id") @db.Uuid
-  relationship    Relationship @default(FRIENDS)
+  id                String       @id @default(uuid()) @db.Uuid
+  code              String       @unique
+  creatorId         String       @map("creator_id") @db.Uuid
+  relationship      Relationship @default(FRIENDS)
+  relationshipLabel String?      @map("relationship_label")
   // PARENT_CHILD only: whether the person who made the invite is the parent.
-  creatorIsParent Boolean?     @map("creator_is_parent")
-  expiresAt       DateTime     @map("expires_at")
-  usedAt          DateTime?    @map("used_at")
-  usedById        String?      @map("used_by_id") @db.Uuid
-  createdAt       DateTime     @default(now()) @map("created_at")
+  creatorIsParent   Boolean?     @map("creator_is_parent")
+  expiresAt         DateTime     @map("expires_at")
+  usedAt            DateTime?    @map("used_at")
+  usedById          String?      @map("used_by_id") @db.Uuid
+  createdAt         DateTime     @default(now()) @map("created_at")
 
   creator User @relation("InviteCreator", fields: [creatorId], references: [id], onDelete: Cascade)
 

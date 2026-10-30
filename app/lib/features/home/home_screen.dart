@@ -13,6 +13,7 @@ import '../../ui/theme.dart';
 import '../auth/auth_controller.dart';
 import '../game/game_controller.dart';
 import '../pairing/pair_controller.dart';
+import '../pairing/relationship_picker.dart';
 
 const _weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
@@ -128,48 +129,53 @@ class HomeScreen extends ConsumerWidget {
 
   Future<void> _pickRelationship(BuildContext context, WidgetRef ref, PairInfo? pair) async {
     if (pair == null) return;
-    final choice = await showModalBottomSheet<(Relationship, FamilyRole?)>(
+    final choice = await showModalBottomSheet<RelationshipChoice>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('${pair.partner.displayName} is my…', style: Theme.of(ctx).textTheme.headlineSmall),
-              const SizedBox(height: 12),
-              for (final r in Relationship.values)
-                if (r == Relationship.parentChild) ...[
-                  ListTile(
-                    leading: const Text('👩', style: TextStyle(fontSize: 22)),
-                    title: const Text('kid (I’m the parent)'),
-                    onTap: () => Navigator.pop(ctx, (r, FamilyRole.parent)),
-                  ),
-                  ListTile(
-                    leading: const Text('🧒', style: TextStyle(fontSize: 22)),
-                    title: const Text('parent (I’m the kid)'),
-                    onTap: () => Navigator.pop(ctx, (r, FamilyRole.child)),
-                  ),
-                ] else
-                  ListTile(
-                    leading: Text(RelationshipStyle.of(r).emoji, style: const TextStyle(fontSize: 22)),
-                    title: Text(RelationshipStyle.of(r).label),
-                    trailing: pair.relationship == r ? const Icon(Icons.check_rounded) : null,
-                    onTap: () => Navigator.pop(ctx, (r, null)),
-                  ),
-            ],
-          ),
-        ),
-      ),
+      builder: (ctx) => _RelationshipSheet(otherName: pair.partner.displayName),
     );
     if (choice == null) return;
     try {
-      await ref.read(pairProvider.notifier).setRelationship(choice.$1, iAm: choice.$2);
+      await ref.read(pairProvider.notifier).setRelationship(choice.tone, iAm: choice.role, label: choice.label);
     } catch (e) {
       if (context.mounted) showError(context, e);
     }
+  }
+}
+
+class _RelationshipSheet extends StatefulWidget {
+  const _RelationshipSheet({required this.otherName});
+
+  final String otherName;
+
+  @override
+  State<_RelationshipSheet> createState() => _RelationshipSheetState();
+}
+
+class _RelationshipSheetState extends State<_RelationshipSheet> {
+  RelationshipChoice? _choice;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.viewInsetsOf(context).bottom),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('who are you two?', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 12),
+            RelationshipPicker(otherName: widget.otherName, onChanged: (c) => setState(() => _choice = c)),
+            const SizedBox(height: 16),
+            StickerButton(
+              label: 'save',
+              onPressed: (_choice?.complete ?? false) ? () async => Navigator.pop(context, _choice) : null,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -255,7 +261,11 @@ class _Hero extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Tag('${rel.emoji} ${rel.label}', color: rel.left),
+                  Tag(
+                    '${describePair(pair.relationship, pair.relationshipLabel).$1} '
+                    '${describePair(pair.relationship, pair.relationshipLabel).$2}',
+                    color: rel.left,
+                  ),
                   const SizedBox(height: 10),
                   Text('${myName.toLowerCase()} & ${partner.displayName.toLowerCase()}', style: text.headlineLarge),
                   const SizedBox(height: 4),

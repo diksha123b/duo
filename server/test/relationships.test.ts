@@ -92,3 +92,31 @@ describe('weekly lineup', () => {
     expect(GAME_TYPES).toContain(res.lineup[0].type);
   });
 });
+
+describe('custom relationship labels', () => {
+  it('stores any label alongside the tone', async () => {
+    const { a, b } = await pairAs({ relationship: 'SIBLINGS', label: 'cousins' });
+    expect(await pairOf(b)).toMatchObject({ relationship: 'SIBLINGS', relationshipLabel: 'cousins' });
+    await ctx.app.inject({
+      method: 'PATCH',
+      url: '/pair',
+      headers: auth(a),
+      payload: { relationship: 'COLLEAGUES', label: 'desk neighbours' },
+    });
+    expect(await pairOf(b)).toMatchObject({
+      relationship: 'COLLEAGUES',
+      relationshipLabel: 'desk neighbours',
+    });
+  });
+
+  it('rejects overly long labels', async () => {
+    const a = (await register(ctx.app)).tokens.accessToken;
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/invites',
+      headers: auth(a),
+      payload: { relationship: 'FRIENDS', label: 'x'.repeat(31) },
+    });
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+});
