@@ -61,7 +61,11 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
   });
 
   await app.register(helmet);
-  await app.register(cors, { origin: deps.config.CORS_ORIGINS });
+  // @fastify/cors only allows GET/HEAD/POST by default; the API also uses PATCH and DELETE.
+  await app.register(cors, {
+    origin: deps.config.CORS_ORIGINS,
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
+  });
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof AppError) {
