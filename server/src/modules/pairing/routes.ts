@@ -28,6 +28,22 @@ const joinBody = z.object({
 
 const gone = (code: string, message: string) => new AppError(410, code, message);
 
+const RELATIONSHIPS = ['PARTNERS', 'BEST_FRIENDS', 'FRIENDS', 'SIBLINGS', 'PARENT_CHILD'] as const;
+// For a parent and child, say which one you are; ignored otherwise.
+const relationshipBody = z
+  .object({
+    relationship: z.enum(RELATIONSHIPS).default('FRIENDS'),
+    iAm: z.enum(['PARENT', 'CHILD']).optional(),
+  })
+  .refine((b) => b.relationship !== 'PARENT_CHILD' || b.iAm, {
+    message: 'Say whether you are the parent or the child',
+    path: ['iAm'],
+  });
+
+function serializeInvite(invite: { code: string; expiresAt: Date; relationship: string }) {
+  return { code: invite.code, expiresAt: invite.expiresAt, relationship: invite.relationship };
+}
+
 export async function pairingRoutes(app: FastifyInstance) {
   const { prisma, redis } = app.deps;
   const byUser = { key: (req: { userId: string }) => req.userId };
@@ -46,6 +62,9 @@ export async function pairingRoutes(app: FastifyInstance) {
         id: pair.id,
         createdAt: pair.createdAt,
         timezone: pair.timezone,
+        relationship: pair.relationship,
+        myRole:
+          pair.relationship === 'PARENT_CHILD' ? (pair.parentId === req.userId ? 'PARENT' : 'CHILD') : null,
         streak: {
           current: pair.streak
             ? displayStreak(
@@ -81,15 +100,24 @@ export async function pairingRoutes(app: FastifyInstance) {
       ],
     },
     async (req, reply) => {
+      const body = parse(relationshipBody, req.body ?? {});
+      const kind = {
+        relationship: body.relationship,
+        creatorIsParent: body.relationship === 'PARENT_CHILD' ? body.iAm === 'PARENT' : null,
+      };
       const me = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });
       if (me.currentPairId) throw conflict('ALREADY_PAIRED', 'You are already paired');
 
-      // Hand back the live invite instead of spamming new codes.
+      // Hand back the live invite instead of spamming new codes, updating
+      // who it's for if that changed.
       const live = await prisma.invite.findFirst({
         where: { creatorId: req.userId, usedAt: null, expiresAt: { gt: new Date() } },
         orderBy: { createdAt: 'desc' },
       });
-      if (live) return { invite: { code: live.code, expiresAt: live.expiresAt } };
+      if (live) {
+        const updated = await prisma.invite.update({ where: { id: live.id }, data: kind });
+        return { invite: serializeInvite(updated) };
+      }
 
       for (let attempt = 0; attempt < 5; attempt++) {
         try {
@@ -98,10 +126,11 @@ export async function pairingRoutes(app: FastifyInstance) {
               code: generateCode(),
               creatorId: req.userId,
               expiresAt: new Date(Date.now() + INVITE_TTL_MS),
+              ...kind,
             },
           });
           reply.code(201);
-          return { invite: { code: invite.code, expiresAt: invite.expiresAt } };
+          return { invite: serializeInvite(invite) };
         } catch (err) {
           // Unique collision on code: try another.
           if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')) throw err;
@@ -147,6 +176,9 @@ export async function pairingRoutes(app: FastifyInstance) {
           data: {
             userAId: creator.id,
             userBId: me.id,
+            relationship: invite.relationship,
+            parentId:
+              invite.relationship === 'PARENT_CHILD' ? (invite.creatorIsParent ? creator.id : me.id) : null,
             timezone: creator.profile?.timezone ?? 'UTC',
             streak: { create: {} },
           },
@@ -170,6 +202,27 @@ export async function pairingRoutes(app: FastifyInstance) {
       return { pair: { id: pair.id } };
     },
   );
+
+  // Either person can change what the pair is (e.g. friends → best friends).
+  app.patch('/pair', { preHandler: app.authenticate }, async (req) => {
+    const body = parse(relationshipBody, req.body);
+    const me = await prisma.user.findUniqueOrThrow({
+      where: { id: req.userId },
+      include: { currentPair: true },
+    });
+    const pair = me.currentPair;
+    if (!pair) throw notFound('NOT_PAIRED', 'You are not paired');
+    const other = pair.userAId === req.userId ? pair.userBId : pair.userAId;
+    await prisma.pair.update({
+      where: { id: pair.id },
+      data: {
+        relationship: body.relationship,
+        parentId: body.relationship === 'PARENT_CHILD' ? (body.iAm === 'PARENT' ? req.userId : other) : null,
+      },
+    });
+    app.events.emit('pair:changed', { pairId: pair.id });
+    return { pair: { id: pair.id, relationship: body.relationship } };
+  });
 
   app.delete('/pair', { preHandler: app.authenticate }, async (req, reply) => {
     const me = await prisma.user.findUniqueOrThrow({ where: { id: req.userId } });

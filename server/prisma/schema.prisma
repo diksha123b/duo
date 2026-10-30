@@ -11,15 +11,15 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  passwordHash String?  @map("password_hash")
-  googleId     String?  @unique @map("google_id")
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String   @unique
+  passwordHash  String?  @map("password_hash")
+  googleId      String?  @unique @map("google_id")
   // A user is in at most one active pair. Pairing sets this on both users in
   // one transaction with a "currentPairId IS NULL" guard, which makes
   // double-pairing impossible even under concurrent joins.
-  currentPairId String? @map("current_pair_id") @db.Uuid
-  createdAt    DateTime @default(now()) @map("created_at")
+  currentPairId String?  @map("current_pair_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
 
   profile       Profile?
   currentPair   Pair?          @relation("CurrentPair", fields: [currentPairId], references: [id], onDelete: SetNull)
@@ -33,15 +33,15 @@ model User {
 }
 
 model RefreshToken {
-  id           String    @id @default(uuid()) @db.Uuid
-  userId       String    @map("user_id") @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
   // SHA-256 of the opaque token; the raw token is only ever held by the client.
-  tokenHash    String    @unique @map("token_hash")
+  tokenHash String    @unique @map("token_hash")
   // Tokens from one login share a family; reusing a rotated token revokes it.
-  familyId     String    @map("family_id") @db.Uuid
-  expiresAt    DateTime  @map("expires_at")
-  revokedAt    DateTime? @map("revoked_at")
-  createdAt    DateTime  @default(now()) @map("created_at")
+  familyId  String    @map("family_id") @db.Uuid
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -64,14 +64,27 @@ model Profile {
   @@map("profiles")
 }
 
+// Who the two people are to each other. Shapes copy, question choice and
+// the tone of generated games (e.g. nothing romantic between siblings).
+enum Relationship {
+  PARTNERS
+  BEST_FRIENDS
+  FRIENDS
+  SIBLINGS
+  PARENT_CHILD
+}
+
 model Pair {
-  id        String    @id @default(uuid()) @db.Uuid
-  userAId   String    @map("user_a_id") @db.Uuid
-  userBId   String    @map("user_b_id") @db.Uuid
+  id           String       @id @default(uuid()) @db.Uuid
+  relationship Relationship @default(FRIENDS)
+  // PARENT_CHILD only: which member is the parent.
+  parentId     String?      @map("parent_id") @db.Uuid
+  userAId      String       @map("user_a_id") @db.Uuid
+  userBId      String       @map("user_b_id") @db.Uuid
   // The pair's "day" is computed in this zone (inviter's zone at pairing).
-  timezone  String    @default("UTC")
-  createdAt DateTime  @default(now()) @map("created_at")
-  endedAt   DateTime? @map("ended_at")
+  timezone     String       @default("UTC")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  endedAt      DateTime?    @map("ended_at")
 
   members        User[]          @relation("CurrentPair")
   games          Game[]
@@ -85,13 +98,16 @@ model Pair {
 }
 
 model Invite {
-  id        String    @id @default(uuid()) @db.Uuid
-  code      String    @unique
-  creatorId String    @map("creator_id") @db.Uuid
-  expiresAt DateTime  @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  usedById  String?   @map("used_by_id") @db.Uuid
-  createdAt DateTime  @default(now()) @map("created_at")
+  id              String       @id @default(uuid()) @db.Uuid
+  code            String       @unique
+  creatorId       String       @map("creator_id") @db.Uuid
+  relationship    Relationship @default(FRIENDS)
+  // PARENT_CHILD only: whether the person who made the invite is the parent.
+  creatorIsParent Boolean?     @map("creator_is_parent")
+  expiresAt       DateTime     @map("expires_at")
+  usedAt          DateTime?    @map("used_at")
+  usedById        String?      @map("used_by_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at")
 
   creator User @relation("InviteCreator", fields: [creatorId], references: [id], onDelete: Cascade)
 
@@ -114,16 +130,16 @@ enum GameSource {
 }
 
 model Game {
-  id        String     @id @default(uuid()) @db.Uuid
-  pairId    String     @map("pair_id") @db.Uuid
+  id          String     @id @default(uuid()) @db.Uuid
+  pairId      String     @map("pair_id") @db.Uuid
   // Calendar day in the pair's timezone, stored as a DATE ("2026-10-29").
-  day       DateTime   @db.Date
-  type      GameType
-  source    GameSource
-  title     String
-  createdAt DateTime   @default(now()) @map("created_at")
+  day         DateTime   @db.Date
+  type        GameType
+  source      GameSource
+  title       String
+  createdAt   DateTime   @default(now()) @map("created_at")
   // Set when both partners have submitted; drives the live reveal.
-  completedAt DateTime? @map("completed_at")
+  completedAt DateTime?  @map("completed_at")
 
   pair        Pair         @relation(fields: [pairId], references: [id], onDelete: Cascade)
   questions   Question[]
@@ -135,15 +151,15 @@ model Game {
 }
 
 model Question {
-  id       String @id @default(uuid()) @db.Uuid
-  gameId   String @map("game_id") @db.Uuid
-  position Int
-  prompt   String
-  options  String[]
+  id            String   @id @default(uuid()) @db.Uuid
+  gameId        String   @map("game_id") @db.Uuid
+  position      Int
+  prompt        String
+  options       String[]
   // Only SHARED_TRIVIA has a right answer.
-  correctOption Int? @map("correct_option")
+  correctOption Int?     @map("correct_option")
   // Type-specific extras (e.g. WHO_KNOWS_WHOM: which partner the question is about).
-  meta     Json   @default("{}")
+  meta          Json     @default("{}")
 
   game    Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   answers Answer[]
@@ -187,11 +203,11 @@ model Submission {
 }
 
 model Streak {
-  pairId          String    @id @map("pair_id") @db.Uuid
-  current         Int       @default(0)
-  longest         Int       @default(0)
+  pairId           String    @id @map("pair_id") @db.Uuid
+  current          Int       @default(0)
+  longest          Int       @default(0)
   lastCompletedDay DateTime? @map("last_completed_day") @db.Date
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   pair Pair @relation(fields: [pairId], references: [id], onDelete: Cascade)
 

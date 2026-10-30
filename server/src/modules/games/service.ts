@@ -9,7 +9,7 @@ import {
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { track } from '../../lib/events.js';
 import { applyCompletion } from '../../lib/streak.js';
-import { dateToDay, dayToDate, localDay } from '../../lib/time.js';
+import { addDays, dateToDay, dayToDate, localDay } from '../../lib/time.js';
 import { bankGame } from './bank.js';
 import { AGREE_SCALE, GAME_TYPES, type GameContent, type GameTypeName } from './content.js';
 
@@ -29,7 +29,7 @@ export type GameProvider = (args: {
 }) => Promise<ProvidedGame>;
 
 export const bankProvider: GameProvider = async ({ pair, day, type }) => ({
-  content: bankGame(type, `${pair.id}:${day}`),
+  content: bankGame(type, `${pair.id}:${day}`, pair.relationship),
   source: 'BANK',
 });
 
@@ -111,6 +111,16 @@ export class GameService {
     const pair = await this.activePairFor(userId);
     const game = await this.ensureGame(pair, localDay(pair.timezone));
     return this.view(game.id, userId);
+  }
+
+  /** The game types coming up on the pair's next six days, for a "this week" strip. */
+  async lineup(userId: string) {
+    const pair = await this.activePairFor(userId);
+    const today = localDay(pair.timezone);
+    return [1, 2, 3, 4, 5, 6].map((n) => {
+      const day = addDays(today, n);
+      return { day, type: typeForDay(day) };
+    });
   }
 
   async gameForUser(gameId: string, userId: string) {

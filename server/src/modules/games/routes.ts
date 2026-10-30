@@ -40,7 +40,7 @@ export async function gameRoutes(app: FastifyInstance) {
           props: { gameId: game.id, type: game.type },
         });
     }
-    return { game };
+    return { game, lineup: await games.lineup(req.userId) };
   });
 
   // Registered before /games/:id so "history" isn't parsed as an id.

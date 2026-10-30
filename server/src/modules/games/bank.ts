@@ -4,7 +4,11 @@ import { AGREE_SCALE, type GameContent, type GameTypeName } from './content.js';
 // Curated questions. Used directly until Day 5, then as the fallback when
 // LLM generation fails or returns something that doesn't validate.
 
-type Q = { prompt: string; options: string[]; correctOption?: number };
+import type { Relationship } from '@prisma/client';
+
+// `only` limits a question to some relationships (e.g. date ideas are for partners).
+type Q = { prompt: string; options: string[]; correctOption?: number; only?: Relationship[] };
+const PARTNERS_ONLY: Relationship[] = ['PARTNERS'];
 
 const WOULD_YOU_RATHER: Q[] = [
   { prompt: 'Would you rather…', options: ['Travel to the past', 'Travel to the future'] },
@@ -18,6 +22,17 @@ const WOULD_YOU_RATHER: Q[] = [
   { prompt: 'Would you rather…', options: ['Be a famous singer', 'Be a famous athlete'] },
   { prompt: 'Would you rather…', options: ['Plan every trip in detail', 'Decide everything on the spot'] },
   { prompt: 'Would you rather…', options: ['Have chai', 'Have coffee'] },
+  { prompt: 'Would you rather…', options: ['Plan a surprise date', 'Be surprised'], only: PARTNERS_ONLY },
+  {
+    prompt: 'Would you rather…',
+    options: ['Share a room again', 'Share one phone for a week'],
+    only: ['SIBLINGS'],
+  },
+  {
+    prompt: 'Would you rather…',
+    options: ['Cook dinner for the family', 'Plan the next family outing'],
+    only: ['PARENT_CHILD', 'SIBLINGS'],
+  },
   { prompt: 'Would you rather…', options: ['Win a quiz show', 'Win a dance competition'] },
   { prompt: 'Would you rather…', options: ['Talk to animals', 'Speak every language'] },
   { prompt: 'Would you rather…', options: ['Go on a road trip', 'Go on a train journey'] },
@@ -50,6 +65,7 @@ const WHO_KNOWS_WHOM: Q[] = [
   { prompt: 'Phone screen time per day?', options: ['Under 2 hours', '2–4 hours', '4–6 hours', '6+ hours'] },
   { prompt: 'Pick a superpower', options: ['Flying', 'Teleporting', 'Time freeze', 'Super strength'] },
   { prompt: 'Favourite way to celebrate?', options: ['Big dinner', 'Trip', 'Party', 'Quiet day'] },
+  { prompt: 'How do they show they care?', options: ['Kind words', 'Little gifts', 'Spending time', 'Hugs'] },
   { prompt: 'Which genre do they reach for first?', options: ['Comedy', 'Thriller', 'Romance', 'Sci-fi'] },
 ];
 
@@ -206,7 +222,16 @@ const RANK_IT: Q[] = [
   },
   { prompt: 'Rank these desserts', options: ['Ice cream', 'Gulab jamun', 'Chocolate cake', 'Cheesecake'] },
   { prompt: 'Rank these holiday spots', options: ['Beach', 'Mountains', 'Big city', 'Countryside'] },
-  { prompt: 'Rank these date ideas', options: ['Stargazing', 'Food crawl', 'Concert', 'Museum'] },
+  {
+    prompt: 'Rank these date ideas',
+    options: ['Stargazing', 'Food crawl', 'Concert', 'Museum'],
+    only: PARTNERS_ONLY,
+  },
+  { prompt: 'Rank these hangout plans', options: ['Stargazing', 'Food crawl', 'Concert', 'Museum'] },
+  {
+    prompt: 'Rank these family traditions',
+    options: ['Festival food', 'Road trips', 'Movie nights', 'Game nights'],
+  },
   { prompt: 'Rank these superpowers', options: ['Flying', 'Teleporting', 'Mind reading', 'Time travel'] },
   { prompt: 'Rank these snacks', options: ['Samosa', 'Popcorn', 'Chips', 'Fruit'] },
   { prompt: 'Rank these seasons', options: ['Summer', 'Monsoon', 'Winter', 'Spring'] },
@@ -242,14 +267,23 @@ function seededPick<T>(items: T[], count: number, seed: string): T[] {
     .map((x) => x.item);
 }
 
-export function bankGame(type: GameTypeName, seed: string): GameContent {
+const forPair = (pool: Q[], relationship: Relationship) =>
+  pool
+    .filter((q) => !q.only || q.only.includes(relationship))
+    .map((q) => ({ prompt: q.prompt, options: q.options, correctOption: q.correctOption }));
+
+export function bankGame(
+  type: GameTypeName,
+  seed: string,
+  relationship: Relationship = 'FRIENDS',
+): GameContent {
   if (type === 'WHO_KNOWS_WHOM') {
-    const picks = seededPick(WHO_KNOWS_WHOM, 6, seed);
+    const picks = seededPick(forPair(WHO_KNOWS_WHOM, relationship), 6, seed);
     return {
       type,
       title: TITLES[type],
       questions: picks.map((q, i) => ({ ...q, about: i % 2 === 0 ? ('A' as const) : ('B' as const) })),
     };
   }
-  return { type, title: TITLES[type], questions: seededPick(POOLS[type], 5, seed) };
+  return { type, title: TITLES[type], questions: seededPick(forPair(POOLS[type], relationship), 5, seed) };
 }

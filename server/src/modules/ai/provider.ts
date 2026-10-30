@@ -127,6 +127,24 @@ export function createAiProvider(opts: AiProviderOptions): GameProvider {
   };
 }
 
+// Tone and boundaries depend on who the two people are to each other.
+function relationshipLine(pair: Pair): string {
+  const parent = pair.parentId === pair.userAId ? 'A' : 'B';
+  const child = parent === 'A' ? 'B' : 'A';
+  switch (pair.relationship) {
+    case 'PARTNERS':
+      return 'They are a couple. Sweet, flirty-but-tasteful questions are welcome; keep everything non-explicit.';
+    case 'BEST_FRIENDS':
+      return 'They are best friends. Lean into inside-joke energy and playful teasing. Nothing romantic.';
+    case 'FRIENDS':
+      return 'They are friends getting to know each other better. Keep it light and inclusive. Nothing romantic.';
+    case 'SIBLINGS':
+      return 'They are siblings. Playful sibling rivalry and childhood memories work well. Nothing romantic.';
+    case 'PARENT_CHILD':
+      return `Partner ${parent} is the parent and partner ${child} is their child, who may be young. Everything must suit a child aged 8+: warm, family-friendly, simple words, nothing romantic or mature.`;
+  }
+}
+
 async function buildPrompt(prisma: PrismaClient, pair: Pair, type: GameTypeName): Promise<string> {
   const profiles = await prisma.profile.findMany({ where: { userId: { in: [pair.userAId, pair.userBId] } } });
   const describe = (userId: string, label: string) => {
@@ -138,6 +156,7 @@ async function buildPrompt(prisma: PrismaClient, pair: Pair, type: GameTypeName)
   return [
     describe(pair.userAId, 'A'),
     describe(pair.userBId, 'B'),
+    relationshipLine(pair),
     '',
     INSTRUCTIONS[type],
     'Give the game a short, fun title (under 50 characters) that hints at their shared interests.',
