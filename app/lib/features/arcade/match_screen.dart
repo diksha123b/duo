@@ -80,7 +80,7 @@ class MatchScreen extends ConsumerWidget {
                     ArcadeKind.fourInARow => FourInARowBoard(match: m, send: send),
                     ArcadeKind.dotsAndBoxes => DotsAndBoxesBoard(match: m, send: send),
                     ArcadeKind.chess => ChessBoard(board: Turn(m, send)),
-                    ArcadeKind.ludo => LudoBoard(match: m, send: send),
+                    ArcadeKind.ludo => LudoBoard(match: m, send: send, otherName: them),
                     ArcadeKind.wordTiles => WordTilesBoard(board: Turn(m, send)),
                   },
                   if (!m.active) ...[

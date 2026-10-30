@@ -4,6 +4,7 @@ import 'package:duo/features/arcade/boards/common.dart';
 import 'package:duo/features/arcade/boards/ludo_board.dart';
 import 'package:duo/features/arcade/boards/tic_tac_toe.dart';
 import 'package:duo/features/arcade/boards/word_tiles_board.dart';
+import 'package:duo/ui/die.dart';
 import 'package:duo/ui/sticker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,9 +79,34 @@ void main() {
       'movable': <int>[],
     };
     await tester.pumpWidget(wrap(LudoBoard(match: match(ArcadeKind.ludo, view), send: (m) async => sent.add(m))));
-    await tester.tap(find.text('🎲 roll'));
+    expect(find.text('tap to roll'), findsOneWidget);
+    await tester.tap(find.byType(Die).first);
     await tester.pump();
     expect(sent.single, {'type': 'roll'});
+  });
+
+  testWidgets("ludo shows both players' latest rolls", (tester) async {
+    final view = {
+      'tokens': [
+        [-1, -1, -1, -1],
+        [-1, -1, -1, -1],
+      ],
+      'roll': null,
+      'last': {'seat': 1, 'roll': 2, 'passed': true},
+      'movable': <int>[],
+      'dice': [
+        {'value': 5, 'count': 3},
+        {'value': 2, 'count': 4},
+      ],
+    };
+    await tester.pumpWidget(
+      wrap(LudoBoard(match: match(ArcadeKind.ludo, view, yourTurn: false), send: (_) async {}, otherName: 'Ravi')),
+    );
+    expect(find.text('rolled 5'), findsOneWidget); // you
+    expect(find.text('rolled 2'), findsOneWidget); // Ravi
+    expect(find.text('ravi'), findsOneWidget);
+    // Not your turn: your die can't be rolled.
+    expect(find.text('tap to roll'), findsNothing);
   });
 
   testWidgets('word tiles: pick a rack tile, place it, and play', (tester) async {

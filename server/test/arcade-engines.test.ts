@@ -96,6 +96,19 @@ describe('ludo', () => {
     expect(s.last).toMatchObject({ roll: 3, passed: true });
   });
 
+  it("keeps both players' latest rolls visible to both", () => {
+    let s = ludo.apply(ludo.init(noRng), 0, { type: 'roll' }, scripted(2)); // seat 0 rolls 3, passes
+    s = ludo.apply(s, 1, { type: 'roll' }, scripted(0)); // seat 1 rolls 1, passes
+    for (const seat of [0, 1] as const) {
+      expect((ludo.view(s, seat) as { dice: unknown }).dice).toEqual([
+        { value: 3, count: 1 },
+        { value: 1, count: 1 },
+      ]);
+    }
+    s = ludo.apply(s, 0, { type: 'roll' }, scripted(2)); // 3 again: count still moves
+    expect(s.dice?.[0]).toEqual({ value: 3, count: 2 });
+  });
+
   it('a six brings a token out and earns another turn', () => {
     let s = ludo.apply(ludo.init(noRng), 0, { type: 'roll' }, scripted(5)); // 6
     expect((ludo.view(s, 0) as { movable: number[] }).movable).toEqual([0, 1, 2, 3]);

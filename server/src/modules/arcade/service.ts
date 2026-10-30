@@ -110,7 +110,8 @@ export class ArcadeService {
         state,
         version: { increment: 1 },
         status: over ? 'FINISHED' : 'ACTIVE',
-        winnerId: outcome.winner === null || outcome.winner === 'draw' ? null : match.players[outcome.winner]!,
+        winnerId:
+          outcome.winner === null || outcome.winner === 'draw' ? null : match.players[outcome.winner]!,
       },
     });
     if (count === 0) throw conflict('STALE_MATCH', 'The board changed. Refreshing…');

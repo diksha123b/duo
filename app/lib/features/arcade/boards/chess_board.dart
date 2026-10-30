@@ -7,8 +7,18 @@ import 'common.dart';
 // U+FE0E asks for the plain text glyph; without it some browsers draw the
 // black pawn as a grey emoji next to text-style pieces.
 const _glyphs = {
-  'K': '♔\uFE0E', 'Q': '♕\uFE0E', 'R': '♖\uFE0E', 'B': '♗\uFE0E', 'N': '♘\uFE0E', 'P': '♙\uFE0E',
-  'k': '♚\uFE0E', 'q': '♛\uFE0E', 'r': '♜\uFE0E', 'b': '♝\uFE0E', 'n': '♞\uFE0E', 'p': '♟\uFE0E',
+  'K': '♔\uFE0E',
+  'Q': '♕\uFE0E',
+  'R': '♖\uFE0E',
+  'B': '♗\uFE0E',
+  'N': '♘\uFE0E',
+  'P': '♙\uFE0E',
+  'k': '♚\uFE0E',
+  'q': '♛\uFE0E',
+  'r': '♜\uFE0E',
+  'b': '♝\uFE0E',
+  'n': '♞\uFE0E',
+  'p': '♟\uFE0E',
 };
 
 /// Square name → piece letter, from the board part of a FEN.

@@ -17,6 +17,11 @@ export const START: Record<Seat, number> = { 0: 0, 1: 26 };
 // Start squares and the star squares eight steps after each start are safe.
 export const SAFE = new Set([0, 8, 13, 21, 26, 34, 39, 47]);
 
+interface Die {
+  value: number;
+  count: number;
+}
+
 interface State {
   tokens: [number[], number[]];
   turn: Seat;
@@ -24,6 +29,13 @@ interface State {
   roll: number | null;
   /** What just happened, for the other player's screen. */
   last: { seat: Seat; roll: number; token?: number; captured?: boolean; passed?: boolean } | null;
+  /**
+   * Each player's most recent roll, so both dice stay on screen for both
+   * players. `count` goes up with every roll, so clients can replay the
+   * tumble even when the same number comes up twice. Missing on games
+   * started before dice were tracked.
+   */
+  dice?: [Die | null, Die | null];
 }
 
 type Move = { type: 'roll' } | { type: 'move'; token: number };
@@ -47,6 +59,7 @@ export const ludo: Engine<State, Move> = {
     turn: 0,
     roll: null,
     last: null,
+    dice: [null, null],
   }),
   move: z.discriminatedUnion('type', [
     z.object({ type: z.literal('roll') }),
@@ -57,6 +70,9 @@ export const ludo: Engine<State, Move> = {
     if (move.type === 'roll') {
       if (state.roll !== null) throw new MoveError('You already rolled. Move a token');
       const roll = rng.int(6) + 1;
+      const dice = next.dice ?? [null, null];
+      dice[seat] = { value: roll, count: (dice[seat]?.count ?? 0) + 1 };
+      next.dice = dice;
       if (movableTokens(state, seat, roll).length === 0) {
         // Nothing can move with this roll: the turn passes.
         next.turn = other(seat);
@@ -110,6 +126,7 @@ export const ludo: Engine<State, Move> = {
       tokens: state.tokens,
       roll: state.roll,
       last: state.last,
+      dice: state.dice ?? [null, null],
       movable: state.turn === seat && state.roll !== null ? movableTokens(state, seat, state.roll) : [],
     };
   },

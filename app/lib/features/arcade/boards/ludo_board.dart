@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../ui/arcade_style.dart';
-import '../../../ui/sticker.dart';
+import '../../../ui/die.dart';
 import '../../../ui/theme.dart';
 import 'common.dart';
 
@@ -47,10 +47,10 @@ const _bases = [
   return (r.toDouble(), c.toDouble());
 }
 
-const _faces = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-
 class LudoBoard extends BoardWidget {
-  const LudoBoard({super.key, required super.match, required super.send});
+  const LudoBoard({super.key, required super.match, required super.send, this.otherName = 'them'});
+
+  final String otherName;
 
   @override
   Widget build(BuildContext context) {
@@ -62,11 +62,27 @@ class LudoBoard extends BoardWidget {
     final text = Theme.of(context).textTheme;
     final colors = [match.seat == 0 ? youColor : themColor, match.seat == 1 ? youColor : themColor];
 
-    final lastLine = last == null
-        ? 'six to leave base · land on them to send them home'
-        : '${isMine(last['seat']) ? 'you' : 'they'} rolled ${last['roll']}'
-              '${last['passed'] == true ? ' and couldn’t move' : ''}'
-              '${last['captured'] == true ? ' and sent a token home! 💥' : ''}';
+    // Each player's latest roll; both dice are always on screen for both players.
+    final dice = (v['dice'] as List? ?? const [null, null]).map((d) => d as Map?).toList();
+    final mine = dice[match.seat];
+    final theirs = dice[1 - match.seat];
+    final who = last == null ? '' : (isMine(last['seat']) ? 'you' : otherName);
+    final String status;
+    if (myTurn && roll != null) {
+      status = roll == 6 ? 'a six! 🎉 move a glowing token' : 'you rolled $roll! tap a glowing token';
+    } else if (myTurn) {
+      status = last?['passed'] == true && !isMine(last!['seat'])
+          ? '$otherName rolled ${last['roll']} and couldn’t move. your turn!'
+          : 'your turn. tap your die!';
+    } else if (last == null) {
+      status = 'six to leave base · land on them to send them home';
+    } else if (last['captured'] == true) {
+      status = '$who sent a token home! 💥';
+    } else if (last['passed'] == true) {
+      status = '$who rolled ${last['roll']} and couldn’t move';
+    } else {
+      status = match.active ? '$otherName is rolling…' : '';
+    }
 
     return Column(
       children: [
@@ -120,26 +136,27 @@ class LudoBoard extends BoardWidget {
             },
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: Text(lastLine, style: text.bodyMedium)),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 140,
-              child: StickerButton(
-                label: roll != null && myTurn ? '${_faces[roll]} move!' : '🎲 roll',
-                color: DuoColors.sunflower,
-                onPressed: myTurn && roll == null ? () => send({'type': 'roll'}) : null,
+            _DiePanel(
+              label: 'you',
+              die: mine,
+              color: youColor,
+              active: myTurn,
+              // Your die is the roll button.
+              onTap: myTurn && roll == null ? () => send({'type': 'roll'}) : null,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 24),
+                child: Text(status, textAlign: TextAlign.center, style: text.titleMedium),
               ),
             ),
+            _DiePanel(label: otherName.toLowerCase(), die: theirs, color: themColor, active: match.active && !myTurn),
           ],
         ),
-        if (myTurn && roll != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text('you rolled $roll. tap a glowing token', style: text.titleMedium),
-          ),
       ],
     );
   }
@@ -221,4 +238,47 @@ class _LudoPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_LudoPainter old) => old.colors != colors || old.line != line;
+}
+
+/// One player's die with their name, kept on screen for both players.
+class _DiePanel extends StatelessWidget {
+  const _DiePanel({required this.label, required this.die, required this.color, required this.active, this.onTap});
+
+  final String label;
+  final Map? die;
+  final Color color;
+  final bool active;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final value = die?['value'] as int?;
+    return SizedBox(
+      width: 96,
+      child: Column(
+        children: [
+          Text(label, style: text.labelLarge, maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 8),
+          AnimatedOpacity(
+            opacity: active || value != null ? 1 : 0.5,
+            duration: const Duration(milliseconds: 250),
+            child: Die(
+              value: value,
+              count: die?['count'] as int? ?? 0,
+              color: color,
+              size: 68,
+              glowing: onTap != null,
+              onTap: onTap,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            onTap != null ? 'tap to roll' : (value == null ? 'no roll yet' : 'rolled $value'),
+            style: text.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
 }
