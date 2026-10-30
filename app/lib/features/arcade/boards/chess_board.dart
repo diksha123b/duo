@@ -4,19 +4,11 @@ import '../../../ui/arcade_style.dart';
 import '../../../ui/theme.dart';
 import 'common.dart';
 
+// U+FE0E asks for the plain text glyph; without it some browsers draw the
+// black pawn as a grey emoji next to text-style pieces.
 const _glyphs = {
-  'K': '♔',
-  'Q': '♕',
-  'R': '♖',
-  'B': '♗',
-  'N': '♘',
-  'P': '♙',
-  'k': '♚',
-  'q': '♛',
-  'r': '♜',
-  'b': '♝',
-  'n': '♞',
-  'p': '♟',
+  'K': '♔\uFE0E', 'Q': '♕\uFE0E', 'R': '♖\uFE0E', 'B': '♗\uFE0E', 'N': '♘\uFE0E', 'P': '♙\uFE0E',
+  'k': '♚\uFE0E', 'q': '♛\uFE0E', 'r': '♜\uFE0E', 'b': '♝\uFE0E', 'n': '♞\uFE0E', 'p': '♟\uFE0E',
 };
 
 /// Square name → piece letter, from the board part of a FEN.
@@ -106,7 +98,7 @@ class _ChessBoardState extends State<ChessBoard> {
                           color: _from == sq
                               ? DuoColors.sunflower
                               : isLast
-                              ? DuoColors.tangerine.withValues(alpha: 0.6)
+                              ? DuoColors.sunflower.withValues(alpha: 0.75)
                               : dark
                               ? const Color(0xFF8FC9A6)
                               : const Color(0xFFF4EBDC),
