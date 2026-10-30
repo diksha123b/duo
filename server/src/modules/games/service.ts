@@ -67,44 +67,87 @@ export class GameService {
     return user.currentPair;
   }
 
-  // Returns the pair's game for `day`, creating it on first request. The
-  // nightly job (Day 5) normally creates it ahead of time.
+  // Returns the pair's daily game for `day`, creating it on first request.
+  // The nightly job (Day 5) normally creates it ahead of time.
   async ensureGame(
     pair: Pair,
     day: string,
     opts: { allowFallback?: boolean } = {},
   ): Promise<GameWithQuestions> {
-    const where = { pairId_day: { pairId: pair.id, day: dayToDate(day) } };
-    const existing = await this.prisma.game.findUnique({ where, include: { questions: true } });
+    const where = { pairId: pair.id, day: dayToDate(day), isDaily: true };
+    const existing = await this.prisma.game.findFirst({ where, include: { questions: true } });
     if (existing) return existing;
 
     const type = typeForDay(day);
     const { content, source } = await this.provider({ pair, day, type, allowFallback: opts.allowFallback });
     try {
-      return await this.prisma.game.create({
-        data: {
-          pairId: pair.id,
-          day: dayToDate(day),
-          type: content.type,
-          source,
-          title: content.title,
-          questions: {
-            create: content.questions.map((q, position) => ({
-              position,
-              prompt: q.prompt,
-              options: q.options,
-              correctOption: q.correctOption ?? null,
-              meta: q.about ? { about: q.about === 'A' ? pair.userAId : pair.userBId } : {},
-            })),
-          },
-        },
-        include: { questions: true },
-      });
+      return await this.createGame(pair, day, content, source, true);
     } catch (err) {
       // Both partners opened the app at once; the other request created it.
       if (!isUniqueViolation(err)) throw err;
-      return this.prisma.game.findUniqueOrThrow({ where, include: { questions: true } });
+      return this.prisma.game.findFirstOrThrow({ where, include: { questions: true } });
     }
+  }
+
+  private createGame(pair: Pair, day: string, content: GameContent, source: 'AI' | 'BANK', isDaily: boolean) {
+    return this.prisma.game.create({
+      data: {
+        pairId: pair.id,
+        day: dayToDate(day),
+        isDaily,
+        type: content.type,
+        source,
+        title: content.title,
+        questions: {
+          create: content.questions.map((q, position) => ({
+            position,
+            prompt: q.prompt,
+            options: q.options,
+            correctOption: q.correctOption ?? null,
+            meta: q.about ? { about: q.about === 'A' ? pair.userAId : pair.userBId } : {},
+          })),
+        },
+      },
+      include: { questions: true },
+    });
+  }
+
+  /**
+   * A bonus round of `type`, just for fun: no streak, any time, as many as
+   * you like. Returns the one already in progress for that type if there is
+   * one, so both partners end up in the same round.
+   */
+  async startBonus(userId: string, type: GameTypeName) {
+    const pair = await this.activePairFor(userId);
+    const open = await this.prisma.game.findFirst({
+      where: { pairId: pair.id, isDaily: false, type, completedAt: null },
+    });
+    if (open) return { game: await this.view(open.id, userId), created: false };
+    // Questions from the curated bank (instant and free), shuffled fresh each round.
+    const content = bankGame(type, `${pair.id}:bonus:${Date.now()}:${Math.random()}`, pair.relationship);
+    const game = await this.createGame(pair, localDay(pair.timezone), content, 'BANK', false);
+    await track(this.prisma, 'game_started', {
+      userId,
+      pairId: pair.id,
+      props: { gameId: game.id, type, bonus: true },
+    });
+    return { game: await this.view(game.id, userId), created: true };
+  }
+
+  /** Bonus rounds still in progress for the pair (someone hasn't answered yet). */
+  async openBonus(userId: string) {
+    const pair = await this.activePairFor(userId);
+    const games = await this.prisma.game.findMany({
+      where: { pairId: pair.id, isDaily: false, completedAt: null },
+      include: { submissions: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return games.map((g) => ({
+      id: g.id,
+      type: g.type,
+      meSubmitted: g.submissions.some((s) => s.userId === userId),
+      partnerSubmitted: g.submissions.some((s) => s.userId !== userId),
+    }));
   }
 
   async today(userId: string) {
@@ -164,10 +207,11 @@ export class GameService {
       });
       justCompleted = flipped.count === 1;
       if (justCompleted) {
-        await this.recordStreak(game.pairId, dateToDay(game.day));
+        // Only the daily game counts towards the streak.
+        if (game.isDaily) await this.recordStreak(game.pairId, dateToDay(game.day));
         await track(this.prisma, 'game_completed', {
           pairId: game.pairId,
-          props: { gameId, type: game.type },
+          props: { gameId, type: game.type, bonus: !game.isDaily },
         });
       }
     }
@@ -206,6 +250,7 @@ export class GameService {
     const games = await this.prisma.game.findMany({
       where: {
         pairId: pair.id,
+        isDaily: true,
         day: opts.before ? { lt: dayToDate(opts.before) } : undefined,
         OR: [{ day: { lt: dayToDate(today) } }, { completedAt: { not: null } }],
       },
@@ -299,6 +344,7 @@ export class GameService {
       day: dateToDay(game.day),
       type: game.type,
       title: game.title,
+      daily: game.isDaily,
       source: game.source,
       me: { submitted: meSubmitted },
       partner: { submitted: partnerSubmitted },

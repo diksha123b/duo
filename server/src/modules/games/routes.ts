@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { badRequest } from '../../lib/errors.js';
 import { track } from '../../lib/events.js';
 import { parse } from '../../lib/validate.js';
+import { GAME_TYPES } from './content.js';
 
 const idParams = z.object({ id: z.string().uuid() });
 const submitBody = z.object({
@@ -41,6 +42,22 @@ export async function gameRoutes(app: FastifyInstance) {
         });
     }
     return { game, lineup: await games.lineup(req.userId) };
+  });
+
+  // Bonus rounds: any game type, any time, just for fun (no streak).
+  app.get('/games/bonus', { preHandler: app.authenticate }, async (req) => ({
+    games: await games.openBonus(req.userId),
+  }));
+
+  app.post('/games/bonus', { preHandler: app.authenticate }, async (req, reply) => {
+    const { type } = parse(z.object({ type: z.enum(GAME_TYPES) }), req.body);
+    const { game, created } = await games.startBonus(req.userId, type);
+    if (created) {
+      reply.code(201);
+      const { pair } = await games.gameForUser(game.id, req.userId);
+      app.events.emit('bonus:changed', { pairId: pair.id });
+    }
+    return { game };
   });
 
   // Registered before /games/:id so "history" isn't parsed as an id.

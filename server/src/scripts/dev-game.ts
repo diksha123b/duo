@@ -20,7 +20,7 @@ const prisma = createPrisma(config.DATABASE_URL);
 const pairs = await prisma.pair.findMany({ where: { endedAt: null } });
 for (const pair of pairs) {
   const day = localDay(pair.timezone);
-  await prisma.game.deleteMany({ where: { pairId: pair.id, day: dayToDate(day) } });
+  await prisma.game.deleteMany({ where: { pairId: pair.id, day: dayToDate(day), isDaily: true } });
   const content = bankGame(type, `${pair.id}:${day}:${Date.now()}`);
   await prisma.game.create({
     data: {

@@ -27,7 +27,7 @@ export async function planPregeneration(prisma: PrismaClient, now = new Date()):
   if (wanted.length === 0) return [];
 
   const existing = await prisma.game.findMany({
-    where: { OR: wanted.map((w) => ({ pairId: w.pairId, day: dayToDate(w.day) })) },
+    where: { isDaily: true, OR: wanted.map((w) => ({ pairId: w.pairId, day: dayToDate(w.day) })) },
     select: { pairId: true, day: true },
   });
   const have = new Set(existing.map((g) => `${g.pairId}|${g.day.toISOString().slice(0, 10)}`));

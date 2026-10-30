@@ -84,8 +84,8 @@ export function attachRealtime(app: FastifyInstance, opts: { pubClient: Redis; s
     if (!pair) return { partnerPresence: null, game: null };
     const partnerId = pair.userAId === userId ? pair.userBId : pair.userAId;
     // Only report a game that already exists; creating one is the HTTP API's job.
-    const game = await prisma.game.findUnique({
-      where: { pairId_day: { pairId, day: dayToDate(localDay(pair.timezone)) } },
+    const game = await prisma.game.findFirst({
+      where: { pairId, day: dayToDate(localDay(pair.timezone)), isDaily: true },
     });
     return {
       partnerPresence: { userId: partnerId, state: await presenceOf(partnerId) },
@@ -155,6 +155,14 @@ export function attachRealtime(app: FastifyInstance, opts: { pubClient: Redis; s
         if (!views.has(uid)) views.set(uid, await games.view(gameId, uid));
         s.emit('game:revealed', { game: views.get(uid) });
       }
+    }),
+  );
+
+  // A bonus round was started: the other person's home screen shows it.
+  app.events.on(
+    'bonus:changed',
+    safe(async ({ pairId }) => {
+      io.to(pairRoom(pairId)).emit('bonus:changed', {});
     }),
   );
 

@@ -34,6 +34,7 @@ export interface AppEvents {
   'game:completed': [{ gameId: string }];
   'pair:changed': [{ pairId: string }];
   'match:updated': [{ matchId: string }];
+  'bonus:changed': [{ pairId: string }];
 }
 
 declare module 'fastify' {

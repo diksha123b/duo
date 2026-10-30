@@ -146,13 +146,18 @@ model Game {
   createdAt   DateTime   @default(now()) @map("created_at")
   // Set when both partners have submitted; drives the live reveal.
   completedAt DateTime?  @map("completed_at")
+  // False for bonus rounds played just for fun: they don't touch the streak.
+  isDaily     Boolean    @default(true) @map("is_daily")
 
   pair        Pair         @relation(fields: [pairId], references: [id], onDelete: Cascade)
   questions   Question[]
   answers     Answer[]
   submissions Submission[]
 
-  @@unique([pairId, day])
+  // At most one *daily* game per pair per day is enforced by a partial
+  // unique index (games_one_daily_per_day) in raw SQL; Prisma can't express
+  // it. Bonus games are unlimited.
+  @@index([pairId, day])
   @@map("games")
 }
 
