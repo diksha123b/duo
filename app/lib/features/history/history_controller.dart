@@ -46,8 +46,3 @@ class HistoryController extends AsyncNotifier<HistoryState> {
     }
   }
 }
-
-final gameByIdProvider = FutureProvider.autoDispose.family<Game, String>((ref, id) async {
-  final res = await ref.read(apiProvider).get('/games/$id');
-  return Game.fromJson(res['game'] as Map<String, dynamic>);
-});

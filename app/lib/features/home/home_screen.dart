@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/models.dart';
+import '../../core/push/push_controller.dart';
 import '../../core/realtime.dart';
 import '../../ui/buddies.dart';
 import '../../ui/game_style.dart';
@@ -15,6 +16,7 @@ import '../auth/auth_controller.dart';
 import '../game/game_controller.dart';
 import '../pairing/pair_controller.dart';
 import '../pairing/relationship_picker.dart';
+import 'push_banner.dart';
 
 const _weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
@@ -48,6 +50,7 @@ class HomeScreen extends ConsumerWidget {
     final lineup = ref.watch(lineupProvider);
     final realtime = ref.watch(realtimeProvider);
     final me = ref.watch(authProvider).value;
+    final push = ref.watch(pushProvider).value;
 
     return Scaffold(
       appBar: AppBar(
@@ -64,13 +67,19 @@ class HomeScreen extends ConsumerWidget {
               'who' => _pickRelationship(context, ref, pair.value),
               'interests' => context.push('/interests'),
               'unpair' => _confirmUnpair(context, ref),
+              'push' => _togglePush(context, ref, push!),
               _ => ref.read(authProvider.notifier).logout(),
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'who', child: Text('change who we are')),
-              PopupMenuItem(value: 'interests', child: Text('edit my interests')),
-              PopupMenuItem(value: 'unpair', child: Text('unpair')),
-              PopupMenuItem(value: 'logout', child: Text('sign out')),
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'who', child: Text('change who we are')),
+              const PopupMenuItem(value: 'interests', child: Text('edit my interests')),
+              if (push != null && push.available)
+                PopupMenuItem(
+                  value: 'push',
+                  child: Text(push.subscribed ? 'turn off notifications' : 'turn on notifications'),
+                ),
+              const PopupMenuItem(value: 'unpair', child: Text('unpair')),
+              const PopupMenuItem(value: 'logout', child: Text('sign out')),
             ],
           ),
         ],
@@ -99,6 +108,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const PushBanner(),
                 const SizedBox(height: 22),
                 SizedBox(
                   height: 270,
@@ -128,6 +138,21 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _togglePush(BuildContext context, WidgetRef ref, PushState push) async {
+    final notifier = ref.read(pushProvider.notifier);
+    try {
+      if (push.subscribed) {
+        await notifier.disable();
+      } else if (!await notifier.enable() && context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('notifications are blocked: allow them in your browser settings')));
+      }
+    } catch (e) {
+      if (context.mounted) showError(context, e);
+    }
   }
 
   Future<void> _pickRelationship(BuildContext context, WidgetRef ref, PairInfo? pair) async {

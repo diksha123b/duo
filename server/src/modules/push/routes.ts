@@ -12,7 +12,7 @@ export async function pushRoutes(app: FastifyInstance) {
   const auth = { preHandler: app.authenticate };
 
   /** The public key browsers need to subscribe; null when push isn't configured. */
-  app.get('/push/key', async () => ({ key: config.VAPID_PUBLIC_KEY ?? null }));
+  app.get('/push/key', async () => ({ key: (config.VAPID_PRIVATE_KEY && config.VAPID_PUBLIC_KEY) || null }));
 
   app.post('/push/subscribe', auth, async (req, reply) => {
     const { endpoint, keys } = parse(subscription, req.body);

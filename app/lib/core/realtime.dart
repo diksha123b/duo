@@ -77,6 +77,13 @@ class RealtimeController extends Notifier<RealtimeState> {
         ref.invalidate(openBonusProvider);
       })
       ..on('bonus:changed', (_) => ref.invalidate(openBonusProvider))
+      ..on('game:updated', (data) {
+        // A reaction or chat message on a revealed game.
+        final game = Map<String, dynamic>.from((data as Map)['game'] as Map);
+        final id = game['id'] as String;
+        if (ref.exists(bonusGameProvider(id))) ref.read(bonusGameProvider(id).notifier).applyServer(game);
+        _game.applyServer(game);
+      })
       ..on('game:revealed', (data) {
         final game = Map<String, dynamic>.from((data as Map)['game'] as Map);
         final id = game['id'] as String;

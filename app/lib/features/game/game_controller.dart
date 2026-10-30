@@ -63,6 +63,19 @@ mixin PlayableGame on AsyncNotifier<Game> {
     }
   }
 
+  /// Puts your emoji on a revealed answer; null takes it off.
+  Future<void> react(String questionId, String? emoji) async {
+    final game = state.requireValue;
+    final res = await _api.put('/games/${game.id}/questions/$questionId/reaction', body: {'emoji': emoji});
+    _apply(Game.fromJson(res['game'] as Map<String, dynamic>));
+  }
+
+  Future<void> comment(String text) async {
+    final game = state.requireValue;
+    final res = await _api.post('/games/${game.id}/comments', body: {'text': text});
+    _apply(Game.fromJson(res['game'] as Map<String, dynamic>));
+  }
+
   /// Applies a game pushed over the socket. Ignores pushes for other games.
   void applyServer(Map<String, dynamic> json) {
     final incoming = Game.fromJson(json);

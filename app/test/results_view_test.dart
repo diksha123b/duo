@@ -130,4 +130,45 @@ void main() {
     expect(find.text('1. Samosa'), findsOneWidget);
     expect(find.text('1. Popcorn'), findsOneWidget);
   });
+
+  testWidgets('reacting to an answer and chatting about the results', (tester) async {
+    tester.view.physicalSize = const Size(800, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final json = gameJson(
+      meSubmitted: true,
+      partnerSubmitted: true,
+      completed: true,
+      summary: {'kind': 'match', 'matches': 1, 'total': 2},
+    );
+    (json['questions'] as List)[0]['reactions'] = {'mine': null, 'partner': '🔥'};
+    json['comments'] = [
+      {'id': 'c1', 'mine': false, 'text': 'tea, always', 'createdAt': '2026-10-29T10:00:00Z'},
+    ];
+    final reacted = <(String, String?)>[];
+    final sent = <String>[];
+    await tester.pumpWidget(
+      wrap(
+        ResultsView(
+          game: Game.fromJson(json),
+          partnerName: 'Ravi',
+          onReact: (q, e) async => reacted.add((q, e)),
+          onComment: (t) async => sent.add(t),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('ravi 🔥'), findsOneWidget);
+    expect(find.text('tea, always'), findsOneWidget);
+
+    await tester.tap(find.text('❤️').first);
+    expect(reacted, [('q1', '❤️')]);
+
+    await tester.enterText(find.byType(TextField), 'coffee gang');
+    await tester.tap(find.byTooltip('Send'));
+    await tester.pumpAndSettle();
+    expect(sent, ['coffee gang']);
+    expect(find.text('coffee gang'), findsNothing, reason: 'the input clears after sending');
+  });
 }

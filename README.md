@@ -1,25 +1,40 @@
 # Duo
 
-A real-time daily game for two. Pair up with an invite code, get a short game every day that's
-generated from both of your interests, and see your answers revealed side by side the moment you
-both finish. Keep the streak alive.
+A real-time daily game for any two people: partners, best friends, siblings, a parent and child,
+colleagues, or whatever you call each other. Pair up with an invite code, get a short game every
+day built from both of your interests, and see your answers revealed side by side the moment you
+both finish. Then react, chat about it, challenge each other in the arcade, and keep the streak alive.
 
-> **Live:** _add the web URL here_ · **Android:** latest APK on [Releases](../../releases)
+> **Live:** [dyduo.netlify.app](https://dyduo.netlify.app) · **API:** `duo-api-tumt.onrender.com` ·
+> **Android:** latest APK on [Releases](../../releases)
 >
-> _Add a screenshot or GIF of the live reveal here._
+> The free API host sleeps when idle, so the first request after a while can take ~50 seconds.
 
 ## Features
 
-- **Three game types** on one engine: *Who knows whom better*, *Would you rather*, *Team trivia*
-- **AI-personalised daily games** from both partners' interests, validated against a strict schema,
-  pre-generated overnight, with a curated question bank as fallback
-- **Live reveal and presence** over WebSockets: see when your partner is online or playing, and get
-  results the instant they submit
-- **Idempotent submissions**: a double tap, a retry after a timeout, or two devices can't create
-  duplicate answers
+- **Six daily game types** on one engine: *Who knows whom better*, *Would you rather*, *Team
+  trivia*, *Emoji decode*, *Agree-o-meter* and *Rank it*
+- **Any relationship**: pick a preset (partners, best friends, siblings, parent & child,
+  colleagues…) or type your own label. Prompts and copy adapt to it, e.g. no romantic questions
+  between siblings
+- **AI-personalised daily games** from both people's interests, validated against a strict schema,
+  with a curated question bank as fallback
+- **Bonus rounds**: finished today's game? Start extra rounds of any type. They don't touch the streak
+- **Live reveal and presence** over WebSockets: see when the other person is online or playing, and
+  get the results the instant they submit
+- **Reactions and chat on results**: react to each answer with an emoji and talk about it under the
+  reveal, live on both screens
+- **Push notifications** (web push): "they played", "the results are in", "your move", new
+  messages. Skipped while you have Duo open
+- **Two-player arcade**, server-authoritative and turn-based: tic-tac-toe, four in a row, dots and
+  boxes, chess, ludo (the die rolls itself, both players see both dice) and Word Tiles (a crossword
+  tile game checked against a 170k-word dictionary)
+- **Idempotent submissions** and **versioned arcade moves**: double taps, retries and two devices
+  can't create duplicates or play out of turn
 - **Timezone-safe streaks**: a "day" is a calendar day in the pair's timezone
 - Email/password and Google sign-in, rotating refresh tokens, Redis rate limiting
-- History of past games, analytics events, Sentry on app, API and worker
+- Sticker-book UI with light/dark themes and reduce-motion support; history, analytics events,
+  Sentry on app, API and worker
 
 ## Architecture
 
@@ -37,7 +52,8 @@ flowchart LR
   LLM[Claude API]
 
   A -- REST + JWT --> API
-  A <-- WebSocket: presence, reveal --> API
+  A <-- WebSocket: presence, reveal,<br/>moves, reactions --> API
+  API -- web push --> A
   API --> PG
   API -- rate limits, presence,<br/>socket fan-out --> R
   W -- hourly plan + generate jobs --> R
@@ -50,11 +66,13 @@ flowchart LR
 |---|---|
 | `server/src/modules/auth` | Register, login, Google, refresh rotation, logout |
 | `server/src/modules/pairing` | Invite codes, join, unpair, partner card |
-| `server/src/modules/games` | Content schema, question bank, game service (view, submit, scoring, history) |
+| `server/src/modules/games` | Content schema, question bank, game service (view, submit, scoring, bonus rounds, reactions, chat, history) |
+| `server/src/modules/arcade` | Turn-based matches; one pure engine per game (`engines/`), optimistic versioning |
+| `server/src/modules/push` | Web push subscriptions, VAPID sender, triggers for game and match events |
 | `server/src/modules/realtime` | Socket.IO: auth, pair rooms, presence, reveal, catch-up |
 | `server/src/modules/ai` | LLM client, prompt, validation, cache, cost logging |
 | `server/src/jobs` | Pre-generation planner and worker |
-| `app/lib/core` | API client (token refresh), socket client, models |
+| `app/lib/core` | API client (token refresh), socket client, models, web push bridge |
 | `app/lib/features` | Screens + Riverpod controllers per feature |
 
 ### A day in the life of a game
@@ -95,6 +113,11 @@ flowchart LR
   the whole session family.
 - **The LLM is optional.** Without `ANTHROPIC_API_KEY` everything works from the bank, which keeps
   local dev, CI and outages simple.
+- **Arcade engines are pure functions.** Each game is `init / apply(move) / outcome / view(seat)`
+  with a seeded RNG, so the server is the only referee, hidden information (like the other
+  player's tiles) never leaves it, and every rule is unit-tested without a database.
+- **Push only when it helps.** A notification is skipped if that person has a live socket, and
+  subscriptions the push service reports as gone (404/410) are deleted.
 - **Prompts treat user text as data.** Names and interests are JSON-quoted in the prompt, and every
   output is validated before anyone sees it.
 
@@ -105,7 +128,7 @@ Requirements: Node 22 (`nvm use`), Docker, Flutter 3.47+.
 ```bash
 docker compose up -d                 # Postgres (dev + test DBs) and Redis
 cd server
-cp .env.example .env                 # add ANTHROPIC_API_KEY to enable AI games
+cp .env.example .env                 # add ANTHROPIC_API_KEY to enable AI games, VAPID keys for push
 npm install
 npx prisma migrate dev
 npm run dev                          # API on :3000
@@ -115,6 +138,10 @@ cd ../app
 flutter run -d chrome --dart-define=API_URL=http://localhost:3000
 # Android emulator: --dart-define=API_URL=http://10.0.2.2:3000
 ```
+
+Push notifications need a VAPID key pair: `npx web-push generate-vapid-keys`, then set
+`VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`. Without them push is simply off. Browsers only allow
+push on `localhost` or HTTPS; on iPhone, Duo has to be added to the home screen first.
 
 Google sign-in needs OAuth client IDs: set `GOOGLE_CLIENT_IDS` (web and Android IDs, comma
 separated) on the server and `--dart-define=GOOGLE_WEB_CLIENT_ID=…` in the app.
@@ -127,7 +154,8 @@ cd app && flutter test    # widget and unit tests
 ```
 
 Server coverage includes auth (rotation, reuse detection), pairing (every invite error, concurrent
-joins), rate limiting, the game flow for all three types, idempotent double-submits, sockets
+joins), rate limiting, CORS preflight, the game flow for every type, bonus rounds, reactions and
+chat, push triggers, every arcade engine, idempotent double-submits, sockets
 (auth, presence, live reveal, reconnect catch-up, room moves), AI success, invalid output, refusals
 and fallbacks, job retries, streak rules across DST and year boundaries, and paginated history.
 
@@ -139,9 +167,23 @@ cd server && npm run metrics          # last 14 days: funnel, daily games, AI su
 
 ## Deployment
 
-- **API + worker:** one Docker image (`server/Dockerfile`), described by `render.yaml` with managed
-  Postgres and Redis. Migrations run in the API's pre-deploy step.
-- **Web:** Flutter web build on Netlify.
+The live version runs entirely on free tiers:
+
+| Piece | Host | Notes |
+|---|---|---|
+| API (Docker) | Render free web service | `server/Dockerfile`; `npm run start:prod` runs migrations, then the server. Sleeps after 15 min idle |
+| Postgres | Neon | `DATABASE_URL` |
+| Redis | Upstash | `REDIS_URL` (`rediss://`) |
+| Web app | Netlify | `flutter build web --release --dart-define=API_URL=https://<api>` and upload `app/build/web` |
+
+Render environment variables: `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`, `NODE_ENV=production`,
+`CORS_ORIGINS` (the Netlify URL), and optionally `ANTHROPIC_API_KEY` and
+`VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`.
+On the free plan there is no background worker, so games are generated on demand when someone
+opens the app.
+
+`render.yaml` describes the paid setup instead (API + worker + managed Postgres and Redis).
+
 - **Android:** release APK attached to a GitHub Release.
 - **CI/CD:** `ci.yml` lints and tests both projects on every push and PR. `deploy.yml` runs only
   after CI passes on `main` and triggers each deploy whose secrets are configured:
@@ -154,9 +196,9 @@ cd server && npm run metrics          # last 14 days: funnel, daily games, AI su
 
 ## What I'd improve next
 
-- Push notifications ("your partner just played") to bring people back. This is the biggest lever
-  for streaks.
+- Native push on Android/iOS (Firebase Cloud Messaging); today push is web-only.
 - Play Store signing and an iOS build.
+- Keep the free API warm, or move to a paid instance, so the first load isn't slow.
 - Let the pair choose its timezone instead of inheriting the inviter's.
 - Evaluate generated games: sample them for a human rating and track it next to the cost and
   failure rate.

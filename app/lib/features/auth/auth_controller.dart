@@ -3,6 +3,7 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 
 import '../../core/api.dart';
 import '../../core/models.dart';
+import '../../core/push/push_controller.dart';
 import '../../core/token_store.dart';
 
 final authProvider = AsyncNotifierProvider<AuthController, Me?>(AuthController.new);
@@ -58,6 +59,10 @@ class AuthController extends AsyncNotifier<Me?> {
   }
 
   Future<void> logout() async {
+    // Stop "your turn" pushes to this browser before the session goes away.
+    try {
+      await PushController.forget(_api, ref.read(pushPlatformProvider));
+    } catch (_) {}
     final refresh = await _tokens.readRefreshToken();
     if (refresh != null) {
       try {

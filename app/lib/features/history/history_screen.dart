@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models.dart';
 import '../../ui/game_style.dart';
 import '../../ui/states.dart';
+import '../game/game_controller.dart';
 import '../game/results_view.dart';
 import '../pairing/pair_controller.dart';
 import 'history_controller.dart';
@@ -106,7 +107,8 @@ class HistoryDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final game = ref.watch(gameByIdProvider(gameId));
+    // Same by-id controller as bonus rounds, so you can react and chat here too.
+    final game = ref.watch(bonusGameProvider(gameId));
     final partner = ref.watch(pairProvider).value?.partner.displayName ?? 'Partner';
     return Scaffold(
       appBar: AppBar(
@@ -120,10 +122,15 @@ class HistoryDetailScreen extends ConsumerWidget {
           constraints: const BoxConstraints(maxWidth: 560),
           child: AsyncView(
             value: game,
-            onRetry: () => ref.invalidate(gameByIdProvider(gameId)),
+            onRetry: () => ref.invalidate(bonusGameProvider(gameId)),
             isEmpty: (g) => !g.completed,
-            empty: const EmptyView(message: 'This game was never finished, so there are no results.'),
-            data: (g) => ResultsView(game: g, partnerName: partner),
+            empty: const EmptyView(message: 'this game was never finished, so there are no results.'),
+            data: (g) => ResultsView(
+              game: g,
+              partnerName: partner,
+              onReact: (qid, emoji) => ref.read(bonusGameProvider(gameId).notifier).react(qid, emoji),
+              onComment: (text) => ref.read(bonusGameProvider(gameId).notifier).comment(text),
+            ),
           ),
         ),
       ),

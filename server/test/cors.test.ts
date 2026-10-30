@@ -5,7 +5,7 @@ const ctx = setupTestApp();
 
 // Browsers send a preflight before non-simple requests; the web app breaks if it fails.
 describe('CORS preflight', () => {
-  it.each(['GET', 'POST', 'PATCH', 'DELETE'])('allows %s from the web app', async (method) => {
+  it.each(['GET', 'POST', 'PUT', 'PATCH', 'DELETE'])('allows %s from the web app', async (method) => {
     const res = await ctx.app.inject({
       method: 'OPTIONS',
       url: '/me/profile',

@@ -79,7 +79,7 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
           ? createWebPushSender({
               publicKey: deps.config.VAPID_PUBLIC_KEY,
               privateKey: deps.config.VAPID_PRIVATE_KEY,
-              subject: deps.config.VAPID_SUBJECT,
+              subject: deps.config.VAPID_SUBJECT || 'mailto:hello@duo.app',
             })
           : null,
       app.log,
@@ -97,7 +97,7 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
   // @fastify/cors only allows GET/HEAD/POST by default; the API also uses PATCH and DELETE.
   await app.register(cors, {
     origin: deps.config.CORS_ORIGINS,
-    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
   });
 
   app.setErrorHandler((err, req, reply) => {

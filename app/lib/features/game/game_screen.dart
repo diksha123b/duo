@@ -100,6 +100,8 @@ class _GameScreenState extends ConsumerState<GameScreen> {
                     game: g,
                     partnerName: partnerName,
                     celebrate: true,
+                    onReact: (qid, emoji) => notifier().react(qid, emoji),
+                    onComment: (text) => notifier().comment(text),
                   ),
                   Game(meSubmitted: true) => _Waiting(
                     key: const ValueKey('waiting'),

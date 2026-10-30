@@ -8,13 +8,23 @@ import '../../ui/theme.dart';
 
 /// Side-by-side comparison of both people's answers, used by the live reveal
 /// and by history. The summary lands first, then each answer drops in.
-/// With [celebrate], a good result sets off an emoji burst.
+/// With [celebrate], a good result sets off an emoji burst. With [onReact]
+/// and [onComment], you can react to answers and chat under the results.
 class ResultsView extends StatelessWidget {
-  const ResultsView({super.key, required this.game, required this.partnerName, this.celebrate = false});
+  const ResultsView({
+    super.key,
+    required this.game,
+    required this.partnerName,
+    this.celebrate = false,
+    this.onReact,
+    this.onComment,
+  });
 
   final Game game;
   final String partnerName;
   final bool celebrate;
+  final Future<void> Function(String questionId, String? emoji)? onReact;
+  final Future<void> Function(String text)? onComment;
 
   @override
   Widget build(BuildContext context) {
@@ -33,9 +43,13 @@ class ResultsView extends StatelessWidget {
                 delay: Duration(milliseconds: 450 + 130 * i),
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: 10),
-                  child: _AnswerCard(type: game.type, question: q, partnerName: partnerName),
+                  child: _AnswerCard(type: game.type, question: q, partnerName: partnerName, onReact: onReact),
                 ),
               ),
+            if (onComment != null) ...[
+              const SizedBox(height: 8),
+              _Chat(comments: game.comments, partnerName: partnerName, onSend: onComment!),
+            ],
           ],
         ),
         if (celebrate && verdict.great)
@@ -149,11 +163,12 @@ class _SummaryHeader extends StatelessWidget {
 }
 
 class _AnswerCard extends StatelessWidget {
-  const _AnswerCard({required this.type, required this.question, required this.partnerName});
+  const _AnswerCard({required this.type, required this.question, required this.partnerName, this.onReact});
 
   final GameType type;
   final GameQuestion question;
   final String partnerName;
+  final Future<void> Function(String questionId, String? emoji)? onReact;
 
   @override
   Widget build(BuildContext context) {
@@ -191,6 +206,10 @@ class _AnswerCard extends StatelessWidget {
             GameType.agreeOMeter => _AgreeCompare(question: q, partnerName: partnerName),
             _ => _ChoicePair(type: type, question: q, partnerName: partnerName),
           },
+          if (onReact != null) ...[
+            const SizedBox(height: 10),
+            _ReactionBar(question: q, partnerName: partnerName, onReact: onReact!),
+          ],
         ],
       ),
     );
@@ -375,6 +394,147 @@ class _AgreeCompare extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Tap an emoji to react to this answer (tap it again to take it back).
+/// Their reaction shows alongside yours.
+class _ReactionBar extends StatelessWidget {
+  const _ReactionBar({required this.question, required this.partnerName, required this.onReact});
+
+  final GameQuestion question;
+  final String partnerName;
+  final Future<void> Function(String questionId, String? emoji) onReact;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final mine = question.myReaction;
+    final theirs = question.partnerReaction;
+    return Row(
+      children: [
+        for (final e in reactionEmoji)
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => onReact(question.id, mine == e ? null : e),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: mine == e ? DuoColors.sunflower : Colors.transparent,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: mine == e ? DuoColors.line(context) : Colors.transparent, width: 1.5),
+                ),
+                child: AnimatedScale(
+                  scale: mine == e ? 1.2 : 1,
+                  duration: const Duration(milliseconds: 200),
+                  child: Text(e, style: const TextStyle(fontSize: 18)),
+                ),
+              ),
+            ),
+          ),
+        const Spacer(),
+        if (theirs != null)
+          Text('${partnerName.toLowerCase()} $theirs', style: text.labelLarge, overflow: TextOverflow.ellipsis),
+      ],
+    );
+  }
+}
+
+/// A short chat under the results: talk about the answers.
+class _Chat extends StatefulWidget {
+  const _Chat({required this.comments, required this.partnerName, required this.onSend});
+
+  final List<GameComment> comments;
+  final String partnerName;
+  final Future<void> Function(String text) onSend;
+
+  @override
+  State<_Chat> createState() => _ChatState();
+}
+
+class _ChatState extends State<_Chat> {
+  final _input = TextEditingController();
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final text = _input.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.onSend(text);
+      _input.clear();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Sticker(
+      depth: 3,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('talk about it 💬', style: text.titleLarge),
+          const SizedBox(height: 10),
+          if (widget.comments.isEmpty)
+            Text('say something about their answers…', style: text.bodyMedium)
+          else
+            for (final c in widget.comments)
+              Align(
+                alignment: c.mine ? Alignment.centerRight : Alignment.centerLeft,
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  decoration: BoxDecoration(
+                    color: c.mine ? DuoColors.bubblegum : DuoColors.sky,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: DuoColors.line(context), width: 1.5),
+                  ),
+                  child: Text(c.text, style: text.bodyMedium?.copyWith(color: DuoColors.ink)),
+                ),
+              ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _input,
+                  maxLength: 200,
+                  textInputAction: TextInputAction.send,
+                  decoration: InputDecoration(
+                    hintText: 'message ${widget.partnerName.toLowerCase()}',
+                    counterText: '',
+                    isDense: true,
+                  ),
+                  onSubmitted: (_) => _send(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                tooltip: 'Send',
+                onPressed: _sending ? null : _send,
+                icon: const Icon(Icons.send_rounded),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

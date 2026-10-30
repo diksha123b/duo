@@ -161,6 +161,8 @@ class GameQuestion {
     this.correctOption,
     this.myRanking,
     this.partnerRanking,
+    this.myReaction,
+    this.partnerReaction,
   });
 
   final String id;
@@ -174,6 +176,10 @@ class GameQuestion {
   /// Rank it only: option indexes, first to last.
   final List<int>? myRanking;
   final List<int>? partnerRanking;
+
+  /// Emoji each of you put on this answer, once results are revealed.
+  final String? myReaction;
+  final String? partnerReaction;
 
   factory GameQuestion.fromJson(Map<String, dynamic> j) => GameQuestion(
     id: j['id'] as String,
@@ -189,6 +195,8 @@ class GameQuestion {
     correctOption: j['correctOption'] as int?,
     myRanking: (j['myRanking'] as List?)?.cast<int>(),
     partnerRanking: (j['partnerRanking'] as List?)?.cast<int>(),
+    myReaction: (j['reactions'] as Map?)?['mine'] as String?,
+    partnerReaction: (j['reactions'] as Map?)?['partner'] as String?,
   );
 }
 
@@ -262,6 +270,7 @@ class Game {
     required this.questions,
     this.summary,
     this.daily = true,
+    this.comments = const [],
   });
 
   final String id;
@@ -277,6 +286,9 @@ class Game {
   /// False for bonus rounds (no streak).
   final bool daily;
 
+  /// The chat under the results.
+  final List<GameComment> comments;
+
   factory Game.fromJson(Map<String, dynamic> j) => Game(
     id: j['id'] as String,
     day: j['day'] as String,
@@ -288,6 +300,10 @@ class Game {
     questions: (j['questions'] as List).map((q) => GameQuestion.fromJson(q as Map<String, dynamic>)).toList(),
     summary: GameSummary.fromJson(j['summary'] as Map<String, dynamic>?),
     daily: j['daily'] as bool? ?? true,
+    comments: [
+      for (final c in (j['comments'] as List? ?? const []).cast<Map>())
+        GameComment(c['id'] as String, c['mine'] as bool, c['text'] as String),
+    ],
   );
 
   Game copyWith({bool? partnerSubmitted}) => Game(
@@ -301,10 +317,22 @@ class Game {
     questions: questions,
     summary: summary,
     daily: daily,
+    comments: comments,
   );
 }
 
 enum Presence { online, playing, offline }
+
+class GameComment {
+  const GameComment(this.id, this.mine, this.text);
+
+  final String id;
+  final bool mine;
+  final String text;
+}
+
+/// The emoji you can react with (same set as the server).
+const reactionEmoji = ['😂', '❤️', '😮', '🔥', '🤔', '👏'];
 
 class HistoryItem {
   const HistoryItem({
