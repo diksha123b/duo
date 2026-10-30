@@ -1,5 +1,6 @@
 import 'package:duo/core/models.dart';
 import 'package:duo/features/arcade/boards/chess_board.dart';
+import 'package:duo/features/arcade/boards/four_in_a_row.dart';
 import 'package:duo/features/arcade/boards/common.dart';
 import 'package:duo/features/arcade/boards/ludo_board.dart';
 import 'package:duo/features/arcade/boards/tic_tac_toe.dart';
@@ -185,5 +186,63 @@ void main() {
       {'r': 5, 'c': 5, 'letter': 'H'},
       {'r': 5, 'c': 6, 'letter': 'I'},
     ]);
+  });
+
+  group('four in a row', () {
+    Map<String, dynamic> view(List<int?> board, {List<int>? win, int? last}) => {
+      'board': board,
+      'rows': 6,
+      'cols': 7,
+      'last': last,
+      'winningLine': win,
+    };
+
+    testWidgets('shows who is which colour and drops into the tapped column', (tester) async {
+      final sent = <Map<String, dynamic>>[];
+      await tester.pumpWidget(
+        wrap(
+          FourInARowBoard(
+            match: match(ArcadeKind.fourInARow, view(List.filled(42, null))),
+            send: (m) async => sent.add(m),
+            otherName: 'Ravi',
+          ),
+        ),
+      );
+      expect(find.text('you'), findsOneWidget);
+      expect(find.text('ravi'), findsOneWidget);
+      expect(find.text('4 in a line wins'), findsOneWidget);
+      expect(find.text('tap a column to drop your disc'), findsOneWidget);
+
+      // Tapping any spot in column 3 drops into column 3.
+      final columns = find.descendant(of: find.byType(AspectRatio), matching: find.byType(GestureDetector));
+      await tester.tap(columns.at(3));
+      await tester.pumpAndSettle();
+      expect(sent.single, {'col': 3});
+    });
+
+    testWidgets('announces a win', (tester) async {
+      final board = List<int?>.filled(42, null);
+      for (final i in [35, 36, 37, 38]) {
+        board[i] = 0;
+      }
+      await tester.pumpWidget(
+        wrap(
+          FourInARowBoard(
+            match: MatchInfo(
+              id: 'm1',
+              kind: ArcadeKind.fourInARow,
+              active: false,
+              yourTurn: false,
+              result: MatchResult.won,
+              view: view(board, win: [35, 36, 37, 38], last: 38),
+            ),
+            send: (_) async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('you connected four! ✨'), findsOneWidget);
+      expect(find.text('✨'), findsNWidgets(4));
+    });
   });
 }

@@ -59,6 +59,12 @@ class MatchScreen extends ConsumerWidget {
             ? null
             : IconButton(icon: const Icon(Icons.home_rounded), onPressed: () => context.go('/home')),
         actions: [
+          if (style != null)
+            IconButton(
+              tooltip: 'How to play',
+              icon: const Icon(Icons.help_outline_rounded),
+              onPressed: () => showHowToPlay(context, style),
+            ),
           if (match.value?.active ?? false)
             IconButton(tooltip: 'Resign', icon: const Icon(Icons.flag_outlined), onPressed: resign),
         ],
@@ -77,7 +83,7 @@ class MatchScreen extends ConsumerWidget {
                   const SizedBox(height: 14),
                   switch (m.kind) {
                     ArcadeKind.ticTacToe => TicTacToeBoard(match: m, send: send),
-                    ArcadeKind.fourInARow => FourInARowBoard(match: m, send: send),
+                    ArcadeKind.fourInARow => FourInARowBoard(match: m, send: send, otherName: them),
                     ArcadeKind.dotsAndBoxes => DotsAndBoxesBoard(match: m, send: send),
                     ArcadeKind.chess => ChessBoard(board: Turn(m, send)),
                     ArcadeKind.ludo => LudoBoard(match: m, send: send, otherName: them),
@@ -132,4 +138,40 @@ class _TurnBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The rules of a game, in a bottom sheet.
+void showHowToPlay(BuildContext context, ArcadeStyle style) {
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      final text = Theme.of(ctx).textTheme;
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${style.emoji}  how to play ${style.name}', style: text.headlineSmall),
+              const SizedBox(height: 14),
+              for (final (i, rule) in style.rules.indexed)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Tag('${i + 1}', color: style.color),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text(rule, style: text.bodyLarge)),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
