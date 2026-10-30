@@ -158,6 +158,19 @@ export function attachRealtime(app: FastifyInstance, opts: { pubClient: Redis; s
     }),
   );
 
+  // A live game changed: send each player their own view (racks stay private).
+  app.events.on(
+    'match:updated',
+    safe(async ({ matchId }) => {
+      const pairId = await app.deps.arcade.pairIdOf(matchId);
+      if (!pairId) return;
+      const sockets = await io.in(pairRoom(pairId)).fetchSockets();
+      for (const s of sockets) {
+        s.emit('match:updated', { match: await app.deps.arcade.get(s.data.userId, matchId) });
+      }
+    }),
+  );
+
   // Pairing changed: move both users' sockets into the right room.
   app.events.on(
     'pair:changed',

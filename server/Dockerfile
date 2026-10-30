@@ -19,6 +19,8 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci --omit=dev && npx prisma generate && npm cache clean --force
 COPY --from=build /app/dist ./dist
+# Word list for the word-tiles game.
+COPY data ./data
 USER node
 EXPOSE 3000
 CMD ["node", "dist/index.js"]

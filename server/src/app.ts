@@ -9,6 +9,9 @@ import { AppError, unauthorized } from './lib/errors.js';
 import { reportError } from './lib/sentry.js';
 import type { GoogleVerifier } from './lib/google.js';
 import { TokenService, verifyAccessToken } from './lib/tokens.js';
+import { arcadeRoutes } from './modules/arcade/routes.js';
+import { ArcadeService } from './modules/arcade/service.js';
+import type { Rng } from './modules/arcade/engines/types.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { gameRoutes } from './modules/games/routes.js';
 import { bankProvider, GameService, type GameProvider } from './modules/games/service.js';
@@ -21,6 +24,7 @@ export interface Deps {
   redis: Redis;
   tokens: TokenService;
   games: GameService;
+  arcade: ArcadeService;
   verifyGoogle: GoogleVerifier;
 }
 
@@ -29,6 +33,7 @@ export interface AppEvents {
   'game:submitted': [{ gameId: string; userId: string }];
   'game:completed': [{ gameId: string }];
   'pair:changed': [{ pairId: string }];
+  'match:updated': [{ matchId: string }];
 }
 
 declare module 'fastify' {
@@ -42,7 +47,10 @@ declare module 'fastify' {
   }
 }
 
-export type BuildDeps = Omit<Deps, 'tokens' | 'games'> & { gameProvider?: GameProvider };
+export type BuildDeps = Omit<Deps, 'tokens' | 'games' | 'arcade'> & {
+  gameProvider?: GameProvider;
+  arcadeRng?: Rng;
+};
 
 export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {}) {
   const app: FastifyInstance = Fastify({ logger: opts.logger ?? false });
@@ -51,6 +59,7 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
     ...deps,
     tokens: new TokenService(deps.prisma, deps.config),
     games: new GameService(deps.prisma, deps.gameProvider ?? bankProvider),
+    arcade: new ArcadeService(deps.prisma, deps.arcadeRng),
   });
   app.decorate('events', new EventEmitter<AppEvents>());
   app.decorateRequest('userId', '');
@@ -86,6 +95,7 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
   await app.register(userRoutes);
   await app.register(pairingRoutes);
   await app.register(gameRoutes);
+  await app.register(arcadeRoutes);
 
   return app;
 }

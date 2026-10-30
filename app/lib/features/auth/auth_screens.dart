@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../config.dart';
+import '../../core/models.dart';
 import '../../ui/buddies.dart';
+import '../../ui/game_style.dart';
+import '../../ui/marquee.dart';
 import '../../ui/states.dart';
 import '../../ui/sticker.dart';
 import '../../ui/theme.dart';
@@ -166,49 +169,56 @@ class _AuthScaffold extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: const BoxConstraints(maxWidth: 460),
               child: AutofillGroup(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Center(child: Buddies(size: 110)),
-                    const SizedBox(height: 4),
-                    Text('duo', style: text.displayMedium, textAlign: TextAlign.center),
-                    const SizedBox(height: 6),
-                    Text(
-                      'one tiny game a day for you and your person.',
-                      style: text.titleMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 10),
-                    const Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        Tag('💞 partners', color: DuoColors.bubblegum),
-                        Tag('👯 besties', color: DuoColors.grape),
-                        Tag('🧃 siblings', color: DuoColors.tangerine),
-                        Tag('🫶 parent & kid', color: DuoColors.sky),
-                      ],
-                    ),
-                    const SizedBox(height: 22),
-                    Sticker(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
                         children: [
-                          Text(title, style: text.headlineSmall),
-                          const SizedBox(height: 2),
-                          Text(subtitle, style: text.bodyMedium),
-                          const SizedBox(height: 18),
-                          child,
+                          Text('duo', style: text.displaySmall),
+                          const Spacer(),
+                          const Buddies(size: 64, mood: BuddyMood.celebrating),
                         ],
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text('one tiny game a day,\nfor you and your person.', style: text.headlineMedium),
+                    ),
+                    const SizedBox(height: 18),
+                    const _GameMarquee(),
+                    const SizedBox(height: 14),
+                    const _Banter(),
+                    const SizedBox(height: 18),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Sticker(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(title, style: text.headlineSmall),
+                            const SizedBox(height: 2),
+                            Text(subtitle, style: text.bodyMedium),
+                            const SizedBox(height: 18),
+                            child,
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      '6 daily games · live chess, ludo & more · free',
+                      style: text.bodySmall,
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),
@@ -216,6 +226,91 @@ class _AuthScaffold extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The game shelf, drifting past like a shop window.
+class _GameMarquee extends StatelessWidget {
+  const _GameMarquee();
+
+  static const _extras = [
+    ('♟️', 'chess', DuoColors.mint),
+    ('🎲', 'ludo', DuoColors.sunflower),
+    ('🔤', 'word tiles', DuoColors.grape),
+    ('🔴', 'four in a row', DuoColors.bubblegum),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    Widget card(String emoji, String name, Color color, int i) => SizedBox(
+      width: 118,
+      child: Sticker(
+        color: color,
+        depth: 4,
+        tilt: i.isEven ? -3 : 3,
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 30)),
+            const SizedBox(height: 6),
+            Text(name, style: text.labelLarge?.copyWith(color: DuoColors.ink), maxLines: 2),
+          ],
+        ),
+      ),
+    );
+    final daily = [
+      for (final t in GameType.values) (GameStyle.of(t).emoji, GameStyle.of(t).name, GameStyle.of(t).color),
+    ];
+    final all = [...daily, ..._extras];
+    return Marquee(height: 140, children: [for (final (i, g) in all.indexed) card(g.$1, g.$2, g.$3, i)]);
+  }
+}
+
+/// A few chat bubbles from different kinds of duos.
+class _Banter extends StatelessWidget {
+  const _Banter();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bubble(String who, String line, Color color, {required bool right, double tilt = 0}) => Align(
+      alignment: right ? Alignment.centerRight : Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 300),
+        child: Sticker(
+          color: color,
+          depth: 3,
+          radius: 18,
+          tilt: tilt,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: '$who  ',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                TextSpan(text: line),
+              ],
+            ),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: DuoColors.ink),
+          ),
+        ),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          bubble('aarav', 'you picked pineapple?? i can’t look at you 😭', DuoColors.tangerine, right: false, tilt: -1),
+          const SizedBox(height: 6),
+          bubble('mum', 'who taught you chess like that 👀', DuoColors.sky, right: true, tilt: 1),
+          const SizedBox(height: 6),
+          bubble('zoya', '9 day streak. don’t you dare break it', DuoColors.bubblegum, right: false, tilt: -0.5),
+        ],
       ),
     );
   }

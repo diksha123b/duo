@@ -91,6 +91,7 @@ model Pair {
   endedAt           DateTime?    @map("ended_at")
 
   members        User[]          @relation("CurrentPair")
+  matches        Match[]
   games          Game[]
   streak         Streak?
   events         Event[]
@@ -258,4 +259,42 @@ model GenerationLog {
 
   @@index([createdAt])
   @@map("generation_logs")
+}
+
+// Live, turn-by-turn games the pair plays any time (chess, ludo, …),
+// separate from the one daily game.
+enum ArcadeKind {
+  TIC_TAC_TOE
+  FOUR_IN_A_ROW
+  DOTS_AND_BOXES
+  CHESS
+  LUDO
+  WORD_TILES
+}
+
+enum MatchStatus {
+  ACTIVE
+  FINISHED
+  ABANDONED
+}
+
+model Match {
+  id        String      @id @default(uuid()) @db.Uuid
+  pairId    String      @map("pair_id") @db.Uuid
+  kind      ArcadeKind
+  // players[0] moves first. Engines index players 0/1.
+  players   String[]    @db.Uuid
+  // Full engine state, including hidden parts (racks, tile bag) that views strip.
+  state     Json
+  // Bumped on every move; moves must name the version they were made against.
+  version   Int         @default(0)
+  status    MatchStatus @default(ACTIVE)
+  winnerId  String?     @map("winner_id") @db.Uuid
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  pair Pair @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@index([pairId, status])
+  @@map("matches")
 }
