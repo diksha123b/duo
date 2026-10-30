@@ -14,19 +14,19 @@ class FakeHistory extends HistoryController {
 }
 
 HistoryItem item(String day, {bool completed = true, bool meSubmitted = true}) => HistoryItem(
-      id: day,
-      day: day,
-      type: GameType.wouldYouRather,
-      title: 'Would You Rather',
-      completed: completed,
-      meSubmitted: meSubmitted,
-      summary: completed ? const MatchSummary(3, 5) : null,
-    );
+  id: day,
+  day: day,
+  type: GameType.wouldYouRather,
+  title: 'Would You Rather',
+  completed: completed,
+  meSubmitted: meSubmitted,
+  summary: completed ? const MatchSummary(3, 5) : null,
+);
 
 Widget app(List<HistoryItem> items) => ProviderScope(
-      overrides: [historyProvider.overrideWith(() => FakeHistory(items))],
-      child: const MaterialApp(home: HistoryScreen()),
-    );
+  overrides: [historyProvider.overrideWith(() => FakeHistory(items))],
+  child: const MaterialApp(home: HistoryScreen()),
+);
 
 void main() {
   testWidgets('lists past games with their results and missed days', (tester) async {

@@ -13,13 +13,15 @@ class FakeGame extends TodayGameController {
   FakeGame(this.initial);
   final Future<Game> Function() initial;
   Map<String, int>? submitted;
+  Map<String, List<int>>? submittedRankings;
 
   @override
   Future<Game> build() => initial();
 
   @override
-  Future<void> submit(Map<String, int> choices) async {
+  Future<void> submit(Map<String, int> choices, {Map<String, List<int>> rankings = const {}}) async {
     submitted = choices;
+    submittedRankings = rankings;
     state = AsyncData(Game.fromJson(gameJson(meSubmitted: true)));
   }
 }
@@ -38,13 +40,13 @@ class NoPair extends PairController {
 }
 
 Widget app(FakeGame game) => ProviderScope(
-      overrides: [
-        todayGameProvider.overrideWith(() => game),
-        realtimeProvider.overrideWith(FakeRealtime.new),
-        pairProvider.overrideWith(NoPair.new),
-      ],
-      child: const MaterialApp(home: GameScreen()),
-    );
+  overrides: [
+    todayGameProvider.overrideWith(() => game),
+    realtimeProvider.overrideWith(FakeRealtime.new),
+    pairProvider.overrideWith(NoPair.new),
+  ],
+  child: const MaterialApp(home: GameScreen()),
+);
 
 void main() {
   testWidgets('plays through questions, submits, then shows the waiting state', (tester) async {
@@ -52,10 +54,13 @@ void main() {
     await tester.pumpWidget(app(game));
     await tester.pumpAndSettle();
 
-    expect(find.text('1 / 2'), findsOneWidget);
+    expect(find.text('1 of 2'), findsOneWidget);
     await tester.tap(find.text('Coffee'));
+    // The selection shows briefly before advancing.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Beach'));
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Submit answers'));
@@ -83,5 +88,82 @@ void main() {
     await tester.pumpWidget(app(FakeGame(() async => Game.fromJson(done))));
     await tester.pumpAndSettle();
     expect(find.text('2 / 2 matched'), findsOneWidget);
+  });
+
+  testWidgets('rank it submits a full ordering per question', (tester) async {
+    final rank = gameJson(
+      type: 'RANK_IT',
+      questions: [
+        {
+          'id': 'q1',
+          'prompt': 'Rank these snacks',
+          'options': ['Samosa', 'Popcorn', 'Chips', 'Fruit'],
+          'about': null,
+          'myChoice': null,
+          'partnerChoice': null,
+          'correctOption': null,
+        },
+      ],
+    );
+    final game = FakeGame(() async => Game.fromJson(rank));
+    await tester.pumpWidget(app(game));
+    await tester.pumpAndSettle();
+    expect(find.text('Samosa'), findsOneWidget);
+
+    await tester.tap(find.text('Lock in my order'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Submit answers'));
+    await tester.pump();
+    expect(game.submittedRankings, {
+      'q1': [0, 1, 2, 3],
+    });
+  });
+
+  testWidgets('agree-o-meter offers the five-point scale', (tester) async {
+    final agree = gameJson(
+      type: 'AGREE_O_METER',
+      questions: [
+        {
+          'id': 'q1',
+          'prompt': 'Rainy days are the best days.',
+          'options': ['Strongly disagree', 'Disagree', 'Not sure', 'Agree', 'Strongly agree'],
+          'about': null,
+          'myChoice': null,
+          'partnerChoice': null,
+          'correctOption': null,
+        },
+      ],
+    );
+    final game = FakeGame(() async => Game.fromJson(agree));
+    await tester.pumpWidget(app(game));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Strongly agree'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Submit answers'));
+    await tester.pump();
+    expect(game.submitted, {'q1': 4});
+  });
+
+  testWidgets('emoji decode shows the clue large with its category', (tester) async {
+    final emoji = gameJson(
+      type: 'EMOJI_DECODE',
+      questions: [
+        {
+          'id': 'q1',
+          'prompt': '🦁👑🌅 (movie)',
+          'options': ['The Lion King', 'Madagascar', 'Jungle Book', 'Tarzan'],
+          'about': null,
+          'myChoice': null,
+          'partnerChoice': null,
+          'correctOption': null,
+        },
+      ],
+    );
+    await tester.pumpWidget(app(FakeGame(() async => Game.fromJson(emoji))));
+    await tester.pumpAndSettle();
+    expect(find.text('🦁👑🌅'), findsOneWidget);
+    expect(find.text('a movie'), findsOneWidget);
   });
 }

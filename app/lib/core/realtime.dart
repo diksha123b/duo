@@ -16,10 +16,8 @@ class RealtimeState {
   final bool connected;
   final Presence partnerPresence;
 
-  RealtimeState copyWith({bool? connected, Presence? partnerPresence}) => RealtimeState(
-        connected: connected ?? this.connected,
-        partnerPresence: partnerPresence ?? this.partnerPresence,
-      );
+  RealtimeState copyWith({bool? connected, Presence? partnerPresence}) =>
+      RealtimeState(connected: connected ?? this.connected, partnerPresence: partnerPresence ?? this.partnerPresence);
 }
 
 final realtimeProvider = NotifierProvider<RealtimeController, RealtimeState>(RealtimeController.new);
@@ -94,8 +92,8 @@ class RealtimeController extends Notifier<RealtimeState> {
   }
 
   static Presence _presence(Object? s) => switch (s) {
-        'playing' => Presence.playing,
-        'online' => Presence.online,
-        _ => Presence.offline,
-      };
+    'playing' => Presence.playing,
+    'online' => Presence.online,
+    _ => Presence.offline,
+  };
 }

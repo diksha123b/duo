@@ -38,8 +38,13 @@ class ApiClient {
 
   Future<Map<String, dynamic>> get(String path) => _send(() => _dio.get(path));
 
-  Future<Map<String, dynamic>> post(String path, {Object? body, Map<String, String>? headers}) =>
-      _send(() => _dio.post(path, data: body ?? {}, options: Options(headers: headers)));
+  Future<Map<String, dynamic>> post(String path, {Object? body, Map<String, String>? headers}) => _send(
+    () => _dio.post(
+      path,
+      data: body ?? {},
+      options: Options(headers: headers),
+    ),
+  );
 
   Future<Map<String, dynamic>> patch(String path, {Object? body}) => _send(() => _dio.patch(path, data: body));
 
@@ -117,8 +122,10 @@ class ApiClient {
       DioExceptionType.connectionError ||
       DioExceptionType.connectionTimeout ||
       DioExceptionType.receiveTimeout ||
-      DioExceptionType.sendTimeout =>
-        const ApiException('NETWORK', "Can't reach Duo. Check your connection and try again."),
+      DioExceptionType.sendTimeout => const ApiException(
+        'NETWORK',
+        "Can't reach Duo. Check your connection and try again.",
+      ),
       _ => ApiException('UNKNOWN', 'Something went wrong (${e.response?.statusCode ?? e.type.name})'),
     };
   }

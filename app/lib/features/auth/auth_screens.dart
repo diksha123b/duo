@@ -99,11 +99,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (!_form.currentState!.validate()) return;
     setState(() => _error = null);
     try {
-      await ref.read(authProvider.notifier).register(
-            email: _email.text.trim(),
-            password: _password.text,
-            displayName: _name.text.trim(),
-          );
+      await ref
+          .read(authProvider.notifier)
+          .register(email: _email.text.trim(), password: _password.text, displayName: _name.text.trim());
     } catch (e) {
       setState(() => _error = e.toString());
     }
@@ -230,11 +228,13 @@ class _OrDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Padding(
       padding: EdgeInsets.symmetric(vertical: 16),
-      child: Row(children: [
-        Expanded(child: Divider()),
-        Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('or')),
-        Expanded(child: Divider()),
-      ]),
+      child: Row(
+        children: [
+          Expanded(child: Divider()),
+          Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('or')),
+          Expanded(child: Divider()),
+        ],
+      ),
     );
   }
 }

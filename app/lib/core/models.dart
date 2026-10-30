@@ -10,11 +10,11 @@ class Profile {
   final String? avatarUrl;
 
   factory Profile.fromJson(Map<String, dynamic> j) => Profile(
-        displayName: j['displayName'] as String,
-        interests: List<String>.from(j['interests'] as List),
-        timezone: j['timezone'] as String,
-        avatarUrl: j['avatarUrl'] as String?,
-      );
+    displayName: j['displayName'] as String,
+    interests: List<String>.from(j['interests'] as List),
+    timezone: j['timezone'] as String,
+    avatarUrl: j['avatarUrl'] as String?,
+  );
 }
 
 class Me {
@@ -29,11 +29,11 @@ class Me {
   bool get paired => pairId != null;
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(
-        id: j['id'] as String,
-        email: j['email'] as String,
-        pairId: j['pairId'] as String?,
-        profile: Profile.fromJson(j['profile'] as Map<String, dynamic>),
-      );
+    id: j['id'] as String,
+    email: j['email'] as String,
+    pairId: j['pairId'] as String?,
+    profile: Profile.fromJson(j['profile'] as Map<String, dynamic>),
+  );
 }
 
 class Partner {
@@ -45,20 +45,15 @@ class Partner {
   final String? avatarUrl;
 
   factory Partner.fromJson(Map<String, dynamic> j) => Partner(
-        id: j['id'] as String,
-        displayName: j['displayName'] as String,
-        interests: List<String>.from(j['interests'] as List),
-        avatarUrl: j['avatarUrl'] as String?,
-      );
+    id: j['id'] as String,
+    displayName: j['displayName'] as String,
+    interests: List<String>.from(j['interests'] as List),
+    avatarUrl: j['avatarUrl'] as String?,
+  );
 }
 
 class PairInfo {
-  const PairInfo({
-    required this.id,
-    required this.partner,
-    required this.currentStreak,
-    required this.longestStreak,
-  });
+  const PairInfo({required this.id, required this.partner, required this.currentStreak, required this.longestStreak});
 
   final String id;
   final Partner partner;
@@ -89,7 +84,10 @@ class Invite {
 enum GameType {
   whoKnowsWhom('WHO_KNOWS_WHOM'),
   wouldYouRather('WOULD_YOU_RATHER'),
-  sharedTrivia('SHARED_TRIVIA');
+  sharedTrivia('SHARED_TRIVIA'),
+  emojiDecode('EMOJI_DECODE'),
+  agreeOMeter('AGREE_O_METER'),
+  rankIt('RANK_IT');
 
   const GameType(this.wire);
   final String wire;
@@ -108,6 +106,8 @@ class GameQuestion {
     this.myChoice,
     this.partnerChoice,
     this.correctOption,
+    this.myRanking,
+    this.partnerRanking,
   });
 
   final String id;
@@ -118,31 +118,43 @@ class GameQuestion {
   final int? partnerChoice;
   final int? correctOption;
 
+  /// Rank it only: option indexes, first to last.
+  final List<int>? myRanking;
+  final List<int>? partnerRanking;
+
   factory GameQuestion.fromJson(Map<String, dynamic> j) => GameQuestion(
-        id: j['id'] as String,
-        prompt: j['prompt'] as String,
-        options: List<String>.from(j['options'] as List),
-        about: switch (j['about']) { 'me' => About.me, 'partner' => About.partner, _ => null },
-        myChoice: j['myChoice'] as int?,
-        partnerChoice: j['partnerChoice'] as int?,
-        correctOption: j['correctOption'] as int?,
-      );
+    id: j['id'] as String,
+    prompt: j['prompt'] as String,
+    options: List<String>.from(j['options'] as List),
+    about: switch (j['about']) {
+      'me' => About.me,
+      'partner' => About.partner,
+      _ => null,
+    },
+    myChoice: j['myChoice'] as int?,
+    partnerChoice: j['partnerChoice'] as int?,
+    correctOption: j['correctOption'] as int?,
+    myRanking: (j['myRanking'] as List?)?.cast<int>(),
+    partnerRanking: (j['partnerRanking'] as List?)?.cast<int>(),
+  );
 }
 
 sealed class GameSummary {
   const GameSummary();
 
   static GameSummary? fromJson(Map<String, dynamic>? j) => switch (j?['kind']) {
-        'match' => MatchSummary(j!['matches'] as int, j['total'] as int),
-        'knows' => KnowsSummary(
-            myCorrect: j!['myCorrect'] as int,
-            partnerCorrect: j['partnerCorrect'] as int,
-            aboutPartner: j['aboutPartner'] as int,
-            aboutMe: j['aboutMe'] as int,
-          ),
-        'trivia' => TriviaSummary(j!['myScore'] as int, j['partnerScore'] as int, j['total'] as int),
-        _ => null,
-      };
+    'match' => MatchSummary(j!['matches'] as int, j['total'] as int),
+    'knows' => KnowsSummary(
+      myCorrect: j!['myCorrect'] as int,
+      partnerCorrect: j['partnerCorrect'] as int,
+      aboutPartner: j['aboutPartner'] as int,
+      aboutMe: j['aboutMe'] as int,
+    ),
+    'trivia' => TriviaSummary(j!['myScore'] as int, j['partnerScore'] as int, j['total'] as int),
+    'closeness' => ClosenessSummary(j!['percent'] as int, j['exact'] as int, j['total'] as int),
+    'rank' => RankSummary(j!['percent'] as int, j['sameTop'] as int, j['total'] as int),
+    _ => null,
+  };
 }
 
 class MatchSummary extends GameSummary {
@@ -171,6 +183,20 @@ class TriviaSummary extends GameSummary {
   final int total;
 }
 
+class ClosenessSummary extends GameSummary {
+  const ClosenessSummary(this.percent, this.exact, this.total);
+  final int percent;
+  final int exact;
+  final int total;
+}
+
+class RankSummary extends GameSummary {
+  const RankSummary(this.percent, this.sameTop, this.total);
+  final int percent;
+  final int sameTop;
+  final int total;
+}
+
 class Game {
   const Game({
     required this.id,
@@ -195,28 +221,28 @@ class Game {
   final GameSummary? summary;
 
   factory Game.fromJson(Map<String, dynamic> j) => Game(
-        id: j['id'] as String,
-        day: j['day'] as String,
-        type: GameType.parse(j['type'] as String),
-        title: j['title'] as String,
-        meSubmitted: (j['me'] as Map)['submitted'] as bool,
-        partnerSubmitted: (j['partner'] as Map)['submitted'] as bool,
-        completed: j['completed'] as bool,
-        questions: (j['questions'] as List).map((q) => GameQuestion.fromJson(q as Map<String, dynamic>)).toList(),
-        summary: GameSummary.fromJson(j['summary'] as Map<String, dynamic>?),
-      );
+    id: j['id'] as String,
+    day: j['day'] as String,
+    type: GameType.parse(j['type'] as String),
+    title: j['title'] as String,
+    meSubmitted: (j['me'] as Map)['submitted'] as bool,
+    partnerSubmitted: (j['partner'] as Map)['submitted'] as bool,
+    completed: j['completed'] as bool,
+    questions: (j['questions'] as List).map((q) => GameQuestion.fromJson(q as Map<String, dynamic>)).toList(),
+    summary: GameSummary.fromJson(j['summary'] as Map<String, dynamic>?),
+  );
 
   Game copyWith({bool? partnerSubmitted}) => Game(
-        id: id,
-        day: day,
-        type: type,
-        title: title,
-        meSubmitted: meSubmitted,
-        partnerSubmitted: partnerSubmitted ?? this.partnerSubmitted,
-        completed: completed,
-        questions: questions,
-        summary: summary,
-      );
+    id: id,
+    day: day,
+    type: type,
+    title: title,
+    meSubmitted: meSubmitted,
+    partnerSubmitted: partnerSubmitted ?? this.partnerSubmitted,
+    completed: completed,
+    questions: questions,
+    summary: summary,
+  );
 }
 
 enum Presence { online, playing, offline }
@@ -241,12 +267,12 @@ class HistoryItem {
   final GameSummary? summary;
 
   factory HistoryItem.fromJson(Map<String, dynamic> j) => HistoryItem(
-        id: j['id'] as String,
-        day: j['day'] as String,
-        type: GameType.parse(j['type'] as String),
-        title: j['title'] as String,
-        completed: j['completed'] as bool,
-        meSubmitted: j['meSubmitted'] as bool,
-        summary: GameSummary.fromJson(j['summary'] as Map<String, dynamic>?),
-      );
+    id: j['id'] as String,
+    day: j['day'] as String,
+    type: GameType.parse(j['type'] as String),
+    title: j['title'] as String,
+    completed: j['completed'] as bool,
+    meSubmitted: j['meSubmitted'] as bool,
+    summary: GameSummary.fromJson(j['summary'] as Map<String, dynamic>?),
+  );
 }

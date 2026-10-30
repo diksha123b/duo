@@ -26,7 +26,9 @@ class TodayGameController extends AsyncNotifier<Game> {
     state = AsyncData(await _fetch());
   }
 
-  Future<void> submit(Map<String, int> choices) async {
+  /// [choices] holds one option per question; for Rank it, [rankings] holds
+  /// each question's full order instead.
+  Future<void> submit(Map<String, int> choices, {Map<String, List<int>> rankings = const {}}) async {
     final game = state.requireValue;
     final key = _pendingKey ??= const Uuid().v4();
     try {
@@ -35,7 +37,11 @@ class TodayGameController extends AsyncNotifier<Game> {
         headers: {'Idempotency-Key': key},
         body: {
           'answers': [
-            for (final q in game.questions) {'questionId': q.id, 'choice': choices[q.id]},
+            for (final q in game.questions)
+              if (game.type == GameType.rankIt)
+                {'questionId': q.id, 'ranking': rankings[q.id]}
+              else
+                {'questionId': q.id, 'choice': choices[q.id]},
           ],
         },
       );

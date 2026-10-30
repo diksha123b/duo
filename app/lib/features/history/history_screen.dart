@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/models.dart';
+import '../../ui/game_style.dart';
 import '../../ui/states.dart';
 import '../game/results_view.dart';
 import '../pairing/pair_controller.dart';
@@ -65,8 +66,9 @@ String summaryLine(HistoryItem item) {
   return switch (item.summary) {
     MatchSummary(:final matches, :final total) => '$matches / $total matched',
     KnowsSummary(:final myCorrect, :final partnerCorrect) => 'You $myCorrect · Partner $partnerCorrect',
-    TriviaSummary(:final myScore, :final partnerScore, :final total) =>
-      'Team ${myScore + partnerScore} / ${total * 2}',
+    TriviaSummary(:final myScore, :final partnerScore, :final total) => 'Team ${myScore + partnerScore} / ${total * 2}',
+    ClosenessSummary(:final percent) => '$percent% in tune',
+    RankSummary(:final percent) => '$percent% alike',
     null => 'Completed',
   };
 }
@@ -78,14 +80,13 @@ class _HistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = switch (item.type) {
-      GameType.wouldYouRather => Icons.compare_arrows,
-      GameType.whoKnowsWhom => Icons.favorite_outline,
-      GameType.sharedTrivia => Icons.lightbulb_outline,
-    };
+    final style = GameStyle.of(item.type);
     return Card(
       child: ListTile(
-        leading: Icon(icon),
+        leading: CircleAvatar(
+          backgroundColor: style.tint(context),
+          child: Text(style.emoji, style: const TextStyle(fontSize: 20)),
+        ),
         title: Text(item.title),
         subtitle: Text('${item.day} · ${summaryLine(item)}'),
         trailing: item.completed ? const Icon(Icons.chevron_right) : null,

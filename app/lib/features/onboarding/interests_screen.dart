@@ -6,8 +6,26 @@ import '../../ui/states.dart';
 import '../auth/auth_controller.dart';
 
 const _suggested = [
-  'movies', 'music', 'cricket', 'football', 'travel', 'food', 'cooking', 'books', 'anime', 'gaming',
-  'fitness', 'tech', 'coding', 'art', 'photography', 'fashion', 'science', 'history', 'pets', 'bollywood',
+  'movies',
+  'music',
+  'cricket',
+  'football',
+  'travel',
+  'food',
+  'cooking',
+  'books',
+  'anime',
+  'gaming',
+  'fitness',
+  'tech',
+  'coding',
+  'art',
+  'photography',
+  'fashion',
+  'science',
+  'history',
+  'pets',
+  'bollywood',
 ];
 
 const minInterests = 3;

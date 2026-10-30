@@ -42,12 +42,10 @@ class AuthController extends AsyncNotifier<Me?> {
   }
 
   Future<void> register({required String email, required String password, required String displayName}) async {
-    final res = await _api.post('/auth/register', body: {
-      'email': email,
-      'password': password,
-      'displayName': displayName,
-      'timezone': await _deviceTimezone(),
-    });
+    final res = await _api.post(
+      '/auth/register',
+      body: {'email': email, 'password': password, 'displayName': displayName, 'timezone': await _deviceTimezone()},
+    );
     await _signedIn(res);
   }
 
@@ -73,10 +71,7 @@ class AuthController extends AsyncNotifier<Me?> {
   }
 
   Future<void> updateProfile({List<String>? interests, String? displayName}) async {
-    final res = await _api.patch('/me/profile', body: {
-      'interests': ?interests,
-      'displayName': ?displayName,
-    });
+    final res = await _api.patch('/me/profile', body: {'interests': ?interests, 'displayName': ?displayName});
     state = AsyncData(Me.fromJson(res['user'] as Map<String, dynamic>));
   }
 

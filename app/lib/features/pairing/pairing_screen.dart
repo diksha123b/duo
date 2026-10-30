@@ -102,12 +102,18 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
                               if (_inviteError != null)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
-                                  child: Text(_inviteError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                                  child: Text(
+                                    _inviteError!,
+                                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                                  ),
                                 ),
                               FilledButton.tonal(
                                 onPressed: _creating ? null : _createInvite,
                                 child: _creating
-                                    ? const SizedBox.square(dimension: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                                    ? const SizedBox.square(
+                                        dimension: 20,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
                                     : const Text('Get an invite code'),
                               ),
                             ],
@@ -160,10 +166,7 @@ class _InviteCode extends StatelessWidget {
       children: [
         Text('Your code', style: text.titleMedium),
         const SizedBox(height: 8),
-        SelectableText(
-          invite.code,
-          style: text.displaySmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 8),
-        ),
+        SelectableText(invite.code, style: text.displaySmall?.copyWith(fontWeight: FontWeight.w700, letterSpacing: 8)),
         Text('Expires in ${hours < 1 ? 'under an hour' : '$hours hours'}', style: text.bodySmall),
         const SizedBox(height: 12),
         OutlinedButton.icon(
