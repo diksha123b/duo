@@ -23,4 +23,6 @@ COPY --from=build /app/dist ./dist
 COPY data ./data
 USER node
 EXPOSE 3000
-CMD ["node", "dist/index.js"]
+# Applies any new database migrations, then starts the API. Safe to run on
+# every start: already-applied migrations are skipped.
+CMD ["npm", "run", "start:prod"]

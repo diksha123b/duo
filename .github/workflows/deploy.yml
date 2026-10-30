@@ -19,7 +19,8 @@ jobs:
         run: |
           if [ -z "$API_HOOK" ]; then echo "Render hooks not configured; skipping"; exit 0; fi
           curl -fsS -X POST "$API_HOOK"
-          curl -fsS -X POST "$WORKER_HOOK"
+          # The free setup has no worker.
+          if [ -n "$WORKER_HOOK" ]; then curl -fsS -X POST "$WORKER_HOOK"; fi
 
   web:
     # Skipped until the API_URL repo variable exists, so no build points at nowhere.
@@ -27,7 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Job-level so the deploy step's `if` can see whether it's configured.
-      FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
     defaults:
       run:
         working-directory: app
@@ -45,15 +47,9 @@ jobs:
           --dart-define=API_URL=${{ vars.API_URL }}
           --dart-define=GOOGLE_WEB_CLIENT_ID=${{ vars.GOOGLE_WEB_CLIENT_ID }}
           --dart-define=SENTRY_DSN=${{ vars.APP_SENTRY_DSN }}
-      - name: Deploy to Firebase Hosting
-        if: ${{ env.FIREBASE_SERVICE_ACCOUNT != '' }}
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
-          entryPoint: app
-          channelId: live
+      - name: Deploy to Netlify
+        if: ${{ env.NETLIFY_AUTH_TOKEN != '' }}
+        run: npx --yes netlify-cli@17 deploy --dir=build/web --prod --site "$NETLIFY_SITE_ID" --auth "$NETLIFY_AUTH_TOKEN"
 
   android:
     if: github.event.workflow_run.conclusion == 'success' && vars.API_URL != ''

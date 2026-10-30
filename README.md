@@ -141,7 +141,7 @@ cd server && npm run metrics          # last 14 days: funnel, daily games, AI su
 
 - **API + worker:** one Docker image (`server/Dockerfile`), described by `render.yaml` with managed
   Postgres and Redis. Migrations run in the API's pre-deploy step.
-- **Web:** Flutter web build on Firebase Hosting (`app/firebase.json`).
+- **Web:** Flutter web build on Netlify.
 - **Android:** release APK attached to a GitHub Release.
 - **CI/CD:** `ci.yml` lints and tests both projects on every push and PR. `deploy.yml` runs only
   after CI passes on `main` and triggers each deploy whose secrets are configured:
@@ -149,7 +149,7 @@ cd server && npm run metrics          # last 14 days: funnel, daily games, AI su
 | Secret / variable | Used for |
 |---|---|
 | `RENDER_API_DEPLOY_HOOK`, `RENDER_WORKER_DEPLOY_HOOK` (secrets) | Backend deploys |
-| `FIREBASE_SERVICE_ACCOUNT` (secret), `FIREBASE_PROJECT_ID` (variable) | Web deploy |
+| `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID` (secrets) | Web deploy |
 | `API_URL`, `GOOGLE_WEB_CLIENT_ID`, `APP_SENTRY_DSN` (variables) | App build config |
 
 ## What I'd improve next

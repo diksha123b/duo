@@ -24,8 +24,9 @@ final apiProvider = Provider<ApiClient>((ref) => ApiClient(ref.watch(tokenStoreP
 class ApiClient {
   ApiClient(this.tokens, {Dio? dio}) : _dio = dio ?? Dio(BaseOptions(baseUrl: AppConfig.apiUrl)) {
     _dio.options
-      ..connectTimeout = const Duration(seconds: 10)
-      ..receiveTimeout = const Duration(seconds: 15);
+      // Generous: a free-tier server can take up to a minute to wake up.
+      ..connectTimeout = const Duration(seconds: 30)
+      ..receiveTimeout = const Duration(seconds: 70);
     _dio.interceptors.add(InterceptorsWrapper(onRequest: _attachToken, onError: _refreshOn401));
   }
 
