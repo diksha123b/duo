@@ -50,6 +50,19 @@ class AuthController extends AsyncNotifier<Me?> {
     await _signedIn(res);
   }
 
+  /// Play straight away with just a name.
+  Future<void> playAsGuest(String displayName) async {
+    await _signedIn(
+      await _api.post('/auth/guest', body: {'displayName': displayName, 'timezone': await _deviceTimezone()}),
+    );
+  }
+
+  /// Turns a guest into a full account, keeping the pair, streak and pet.
+  Future<void> saveAccount({required String email, required String password}) async {
+    final res = await _api.post('/auth/save', body: {'email': email, 'password': password});
+    state = AsyncData(Me.fromJson(res['user'] as Map<String, dynamic>));
+  }
+
   Future<void> login({required String email, required String password}) async {
     await _signedIn(await _api.post('/auth/login', body: {'email': email, 'password': password}));
   }

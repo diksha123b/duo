@@ -35,6 +35,8 @@ both finish. Then react, chat about it, challenge each other in the arcade, and 
 - **Idempotent submissions** and **versioned arcade moves**: double taps, retries and two devices
   can't create duplicates or play out of turn
 - **Timezone-safe streaks**: a "day" is a calendar day in the pair's timezone
+- **Play as a guest**: start with just a name, no email. Save the account later and keep the pair,
+  streak and pet
 - Email/password and Google sign-in, rotating refresh tokens, Redis rate limiting
 - Sticker-book UI with light/dark themes and reduce-motion support; history, analytics events,
   Sentry on app, API and worker

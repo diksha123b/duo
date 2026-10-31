@@ -18,10 +18,15 @@ class Profile {
 }
 
 class Me {
-  const Me({required this.id, required this.email, required this.profile, this.pairId});
+  const Me({required this.id, required this.email, required this.profile, this.pairId, this.guest = false});
 
   final String id;
-  final String email;
+
+  /// Null for guests.
+  final String? email;
+
+  /// Playing with just a name; the account only lives on this device until saved.
+  final bool guest;
   final Profile profile;
   final String? pairId;
 
@@ -30,7 +35,8 @@ class Me {
 
   factory Me.fromJson(Map<String, dynamic> j) => Me(
     id: j['id'] as String,
-    email: j['email'] as String,
+    email: j['email'] as String?,
+    guest: j['guest'] as bool? ?? false,
     pairId: j['pairId'] as String?,
     profile: Profile.fromJson(j['profile'] as Map<String, dynamic>),
   );

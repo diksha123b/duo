@@ -17,6 +17,11 @@ const registerBody = z.object({
   displayName: z.string().trim().min(1).max(40),
   timezone,
 });
+const guestBody = z.object({ displayName: z.string().trim().min(1).max(40), timezone });
+const saveBody = z.object({
+  email,
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128),
+});
 const loginBody = z.object({ email, password: z.string().min(1).max(128) });
 const googleBody = z.object({ idToken: z.string().min(1), timezone });
 const refreshBody = z.object({ refreshToken: z.string().min(1) });
@@ -44,6 +49,38 @@ export async function authRoutes(app: FastifyInstance) {
     await track(prisma, 'sign_up', { userId: user.id, props: { method: 'password' } });
     reply.code(201);
     return { user: await serializeMe(prisma, user.id), tokens: await tokens.issue(user.id) };
+  });
+
+  // Play straight away with just a name. The account lives on this device
+  // until the guest saves it with an email and password.
+  app.post('/auth/guest', strict, async (req, reply) => {
+    const body = parse(guestBody, req.body);
+    const user = await prisma.user.create({
+      data: {
+        profile: {
+          create: { displayName: body.displayName, interests: [], timezone: body.timezone ?? 'UTC' },
+        },
+      },
+    });
+    await track(prisma, 'sign_up', { userId: user.id, props: { method: 'guest' } });
+    reply.code(201);
+    return { user: await serializeMe(prisma, user.id), tokens: await tokens.issue(user.id) };
+  });
+
+  // A guest keeps everything (pair, streak, pet) and can now sign in anywhere.
+  app.post('/auth/save', { preHandler: [app.authenticate, strict.preHandler] }, async (req) => {
+    const body = parse(saveBody, req.body);
+    const passwordHash = await hashPassword(body.password);
+    // Only a guest (no email yet) can be saved, and only once.
+    const saved = await prisma.user
+      .updateMany({ where: { id: req.userId, email: null }, data: { email: body.email, passwordHash } })
+      .catch((err: { code?: string }) => {
+        if (err.code === 'P2002') throw conflict('EMAIL_TAKEN', 'An account with this email already exists');
+        throw err;
+      });
+    if (saved.count === 0) throw conflict('NOT_A_GUEST', 'This account is already saved');
+    await track(prisma, 'guest_saved', { userId: req.userId });
+    return { user: await serializeMe(prisma, req.userId) };
   });
 
   app.post('/auth/login', strict, async (req) => {

@@ -7,6 +7,7 @@ export async function serializeMe(prisma: PrismaClient, userId: string) {
   return {
     id: user.id,
     email: user.email,
+    guest: user.email === null,
     hasPassword: user.passwordHash !== null,
     hasGoogle: user.googleId !== null,
     pairId: user.currentPairId,

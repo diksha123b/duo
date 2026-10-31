@@ -13,6 +13,7 @@ import '../../ui/sticker.dart';
 import '../../ui/theme.dart';
 import '../arcade/arcade_controller.dart';
 import '../auth/auth_controller.dart';
+import '../auth/save_account.dart';
 import '../game/game_controller.dart';
 import '../pairing/pair_controller.dart';
 import '../pairing/relationship_picker.dart';
@@ -70,7 +71,8 @@ class HomeScreen extends ConsumerWidget {
               'interests' => context.push('/interests'),
               'unpair' => _confirmUnpair(context, ref),
               'push' => _togglePush(context, ref, push!),
-              _ => ref.read(authProvider.notifier).logout(),
+              'save' => showSaveAccountSheet(context),
+              _ => signOut(context, ref),
             },
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'who', child: Text('change who we are')),
@@ -80,6 +82,7 @@ class HomeScreen extends ConsumerWidget {
                   value: 'push',
                   child: Text(push.subscribed ? 'turn off notifications' : 'turn on notifications'),
                 ),
+              if (me?.guest ?? false) const PopupMenuItem(value: 'save', child: Text('save my account')),
               const PopupMenuItem(value: 'unpair', child: Text('unpair')),
               const PopupMenuItem(value: 'logout', child: Text('sign out')),
             ],
@@ -111,6 +114,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+                const SaveAccountBanner(),
                 const PushBanner(),
                 const SizedBox(height: 22),
                 SizedBox(

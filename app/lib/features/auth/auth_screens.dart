@@ -70,6 +70,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               const _OrDivider(),
               GoogleButton(onError: (e) => setState(() => _error = e.toString())),
             ],
+            const _OrDivider(),
+            const GuestButton(),
             const SizedBox(height: 12),
             TextButton(onPressed: () => context.go('/register'), child: const Text('new here? make an account')),
           ],
@@ -148,6 +150,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               const _OrDivider(),
               GoogleButton(onError: (e) => setState(() => _error = e.toString())),
             ],
+            const _OrDivider(),
+            const GuestButton(),
             const SizedBox(height: 12),
             TextButton(onPressed: () => context.go('/login'), child: const Text('already have one? sign in')),
           ],
@@ -362,6 +366,87 @@ class _OrDivider extends StatelessWidget {
           Expanded(child: Divider()),
         ],
       ),
+    );
+  }
+}
+
+/// "Just play": no email or password, only a name.
+class GuestButton extends ConsumerWidget {
+  const GuestButton({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return OutlinedButton.icon(
+      icon: const Text('👋', style: TextStyle(fontSize: 18)),
+      label: const Text('play as a guest, no sign-up'),
+      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+      onPressed: () => showDialog<void>(context: context, builder: (_) => const _GuestDialog()),
+    );
+  }
+}
+
+class _GuestDialog extends ConsumerStatefulWidget {
+  const _GuestDialog();
+
+  @override
+  ConsumerState<_GuestDialog> createState() => _GuestDialogState();
+}
+
+class _GuestDialogState extends ConsumerState<_GuestDialog> {
+  final _form = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _go() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() => _error = null);
+    try {
+      await ref.read(authProvider.notifier).playAsGuest(_name.text.trim());
+      // Signed in: the router moves on to the next screen.
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('what should they call you?'),
+      content: Form(
+        key: _form,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextFormField(
+              controller: _name,
+              autofocus: true,
+              maxLength: 40,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'your name', counterText: ''),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Pick a name' : null,
+              onFieldSubmitted: (_) => _go(),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'you can save your account with an email any time, so you never lose your streak.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (_error != null) _ErrorText(_error!),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('cancel')),
+        BusyButton(label: 'let’s play', onPressed: _go),
+      ],
     );
   }
 }

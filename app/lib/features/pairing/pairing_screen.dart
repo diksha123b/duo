@@ -10,6 +10,7 @@ import '../../ui/relationship_style.dart';
 import '../../ui/sticker.dart';
 import '../../ui/theme.dart';
 import '../auth/auth_controller.dart';
+import '../auth/save_account.dart';
 import 'pair_controller.dart';
 import 'relationship_picker.dart';
 
@@ -79,7 +80,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
           IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout_rounded),
-            onPressed: () => ref.read(authProvider.notifier).logout(),
+            onPressed: () => signOut(context, ref),
           ),
         ],
       ),
