@@ -7,6 +7,7 @@ import '../features/auth/auth_controller.dart';
 import '../features/game/game_controller.dart';
 import '../features/history/history_controller.dart';
 import '../features/pairing/pair_controller.dart';
+import '../features/pet/pet_controller.dart';
 import 'api.dart';
 import 'models.dart';
 import 'token_store.dart';
@@ -93,6 +94,8 @@ class RealtimeController extends Notifier<RealtimeState> {
         // Completing today's game moves the streak and adds a history entry.
         ref.invalidate(pairProvider);
         ref.invalidate(historyProvider);
+        // Playing together feeds the pet.
+        ref.invalidate(petProvider);
       })
       ..on('match:updated', (data) {
         // Their move arrived: update the open board, and the lobby badges.
@@ -100,6 +103,10 @@ class RealtimeController extends Notifier<RealtimeState> {
         final id = match['id'] as String;
         if (ref.exists(matchProvider(id))) ref.read(matchProvider(id).notifier).applyServer(match);
         ref.invalidate(arcadeProvider);
+        if (match['status'] == 'FINISHED') ref.invalidate(petProvider);
+      })
+      ..on('pet:updated', (data) {
+        ref.read(petProvider.notifier).applyServer(Map<String, dynamic>.from((data as Map)['pet'] as Map));
       })
       ..on('pair:changed', (_) async {
         await ref.read(authProvider.notifier).reload();

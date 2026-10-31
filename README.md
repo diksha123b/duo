@@ -19,6 +19,9 @@ both finish. Then react, chat about it, challenge each other in the arcade, and 
   between siblings
 - **AI-personalised daily games** from both people's interests, validated against a strict schema,
   with a curated question bank as fallback
+- **A shared pet** that hatches from an egg the first time you play together, then grows (baby →
+  kid → grown-up) as you play daily games, arcade games and bonus rounds and give it a daily pat.
+  It gets hungry, then sleepy, when you skip days, and unlocks outfits as it levels up
 - **Bonus rounds**: finished today's game? Start extra rounds of any type. They don't touch the streak
 - **Live reveal and presence** over WebSockets: see when the other person is online or playing, and
   get the results the instant they submit
@@ -116,6 +119,8 @@ flowchart LR
 - **Arcade engines are pure functions.** Each game is `init / apply(move) / outcome / view(seat)`
   with a seeded RNG, so the server is the only referee, hidden information (like the other
   player's tiles) never leaves it, and every rule is unit-tested without a database.
+- **The pet's XP is counted, not stored.** It's derived from completed games, finished matches
+  and pats, so it can't drift out of sync or be double-counted by a retried request.
 - **Push only when it helps.** A notification is skipped if that person has a live socket, and
   subscriptions the push service reports as gone (404/410) are deleted.
 - **Prompts treat user text as data.** Names and interests are JSON-quoted in the prompt, and every

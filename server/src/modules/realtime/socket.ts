@@ -14,6 +14,7 @@ import { dayToDate, localDay } from '../../lib/time.js';
 //   game:partner_submitted { gameId }
 //   game:revealed      { game }                    tailored per player, the moment the 2nd submits
 //   pair:changed       {}                          paired/unpaired; client refetches /pair
+//   pet:updated        {pet}                       someone patted or dressed up the pet
 
 type PresenceState = 'online' | 'playing' | 'offline';
 
@@ -164,6 +165,17 @@ export function attachRealtime(app: FastifyInstance, opts: { pubClient: Redis; s
     safe(async ({ gameId, pairId }) => {
       const sockets = await io.in(pairRoom(pairId)).fetchSockets();
       for (const s of sockets) s.emit('game:updated', { game: await games.view(gameId, s.data.userId) });
+    }),
+  );
+
+  // Someone patted or dressed up the pet: each person gets their own view.
+  app.events.on(
+    'pet:changed',
+    safe(async ({ pairId }) => {
+      const pair = await prisma.pair.findUnique({ where: { id: pairId } });
+      if (!pair) return;
+      const sockets = await io.in(pairRoom(pairId)).fetchSockets();
+      for (const s of sockets) s.emit('pet:updated', { pet: await app.deps.pets.view(pair, s.data.userId) });
     }),
   );
 

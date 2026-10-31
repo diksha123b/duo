@@ -97,6 +97,8 @@ model Pair {
   matches        Match[]
   games          Game[]
   streak         Streak?
+  pet            Pet?
+  petPats        PetPat[]
   events         Event[]
   generationLogs GenerationLog[]
 
@@ -354,4 +356,32 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+// The pair's shared pet. XP isn't stored: it's counted from what the pair has
+// done together (games, matches, pats), so it can never drift.
+model Pet {
+  pairId    String   @id @map("pair_id") @db.Uuid
+  name      String   @default("Mochi")
+  color     String   @default("peach")
+  outfit    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  pair Pair @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@map("pets")
+}
+
+// One pat per person per day (in the pair's timezone).
+model PetPat {
+  pairId    String   @map("pair_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  day       DateTime @db.Date
+  createdAt DateTime @default(now()) @map("created_at")
+
+  pair Pair @relation(fields: [pairId], references: [id], onDelete: Cascade)
+
+  @@id([pairId, userId, day])
+  @@map("pet_pats")
 }

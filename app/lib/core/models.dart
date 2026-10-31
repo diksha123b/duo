@@ -450,3 +450,63 @@ class ArcadeLobby {
     },
   );
 }
+
+enum PetStage { egg, baby, kid, grown }
+
+enum PetMood { happy, hungry, sleepy }
+
+/// The pair's shared pet. It grows from what the two of you do together.
+class PetInfo {
+  const PetInfo({
+    required this.name,
+    required this.color,
+    required this.outfit,
+    required this.xp,
+    required this.level,
+    required this.stage,
+    required this.levelXp,
+    required this.nextLevelXp,
+    required this.mood,
+    required this.pattedByMe,
+    required this.pattedByPartner,
+    required this.unlocked,
+    required this.nextUnlock,
+  });
+
+  factory PetInfo.fromJson(Map<String, dynamic> j) {
+    final patted = j['patted'] as Map<String, dynamic>;
+    final next = j['nextUnlock'] as Map<String, dynamic>?;
+    return PetInfo(
+      name: j['name'] as String,
+      color: j['color'] as String,
+      outfit: j['outfit'] as String?,
+      xp: j['xp'] as int,
+      level: j['level'] as int,
+      stage: PetStage.values.byName(j['stage'] as String),
+      levelXp: j['levelXp'] as int,
+      nextLevelXp: j['nextLevelXp'] as int,
+      mood: PetMood.values.byName(j['mood'] as String),
+      pattedByMe: patted['me'] as bool,
+      pattedByPartner: patted['partner'] as bool,
+      unlocked: (j['unlocked'] as List).cast<String>(),
+      nextUnlock: next == null ? null : (id: next['id'] as String, level: next['level'] as int),
+    );
+  }
+
+  final String name;
+  final String color;
+  final String? outfit;
+  final int xp;
+  final int level;
+  final PetStage stage;
+  final int levelXp;
+  final int nextLevelXp;
+  final PetMood mood;
+  final bool pattedByMe;
+  final bool pattedByPartner;
+  final List<String> unlocked;
+  final ({String id, int level})? nextUnlock;
+
+  /// 0..1 progress through the current level.
+  double get progress => ((xp - levelXp) / (nextLevelXp - levelXp)).clamp(0, 1).toDouble();
+}

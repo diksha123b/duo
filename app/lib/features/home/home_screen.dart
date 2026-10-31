@@ -16,6 +16,8 @@ import '../auth/auth_controller.dart';
 import '../game/game_controller.dart';
 import '../pairing/pair_controller.dart';
 import '../pairing/relationship_picker.dart';
+import '../pet/pet_card.dart';
+import '../pet/pet_controller.dart';
 import 'push_banner.dart';
 
 const _weekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
@@ -87,6 +89,7 @@ class HomeScreen extends ConsumerWidget {
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(pairProvider);
+          ref.invalidate(petProvider);
           await ref.read(todayGameProvider.notifier).refresh().catchError((_) {});
         },
         child: Center(
@@ -121,6 +124,13 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+                if (pair.value != null) ...[
+                  const SizedBox(height: 22),
+                  FadeIn(
+                    delay: const Duration(milliseconds: 150),
+                    child: PetCard(otherName: pair.value!.partner.displayName),
+                  ),
+                ],
                 const SizedBox(height: 22),
                 const FadeIn(delay: Duration(milliseconds: 180), child: _ArcadeTeaser()),
                 if (lineup.isNotEmpty) ...[

@@ -123,4 +123,20 @@ export function registerPushTriggers(app: FastifyInstance) {
       });
     }),
   );
+
+  app.events.on(
+    'pet:changed',
+    safe(async ({ pairId, userId, kind }) => {
+      if (kind !== 'pat') return;
+      const other = await otherIn(pairId, userId);
+      if (!other) return;
+      const pet = await prisma.pet.findUnique({ where: { pairId } });
+      await notifier.notify(other, {
+        title: `${await nameOf(userId)} patted ${pet?.name ?? 'Mochi'} 💕`,
+        body: 'Give a pat back to help them grow.',
+        url: '/#/home',
+        tag: `pet-${pairId}`,
+      });
+    }),
+  );
 }

@@ -19,6 +19,8 @@ import { registerPushTriggers } from './modules/push/triggers.js';
 import { gameRoutes } from './modules/games/routes.js';
 import { bankProvider, GameService, type GameProvider } from './modules/games/service.js';
 import { pairingRoutes } from './modules/pairing/routes.js';
+import { petRoutes } from './modules/pet/routes.js';
+import { PetService } from './modules/pet/service.js';
 import { userRoutes } from './modules/users/routes.js';
 
 export interface Deps {
@@ -28,6 +30,7 @@ export interface Deps {
   tokens: TokenService;
   games: GameService;
   arcade: ArcadeService;
+  pets: PetService;
   notifier: Notifier;
   verifyGoogle: GoogleVerifier;
 }
@@ -39,6 +42,7 @@ export interface AppEvents {
   'pair:changed': [{ pairId: string }];
   'match:updated': [{ matchId: string }];
   'bonus:changed': [{ pairId: string }];
+  'pet:changed': [{ pairId: string; userId: string; kind: 'pat' | 'update' }];
   'game:social': [
     { gameId: string; pairId: string; userId: string; kind: 'reaction' | 'comment'; text: string },
   ];
@@ -55,7 +59,7 @@ declare module 'fastify' {
   }
 }
 
-export type BuildDeps = Omit<Deps, 'tokens' | 'games' | 'arcade' | 'notifier'> & {
+export type BuildDeps = Omit<Deps, 'tokens' | 'games' | 'arcade' | 'pets' | 'notifier'> & {
   gameProvider?: GameProvider;
   arcadeRng?: Rng;
   /** Overrides real web push (tests). */
@@ -65,10 +69,12 @@ export type BuildDeps = Omit<Deps, 'tokens' | 'games' | 'arcade' | 'notifier'> &
 export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {}) {
   const app: FastifyInstance = Fastify({ logger: opts.logger ?? false });
 
+  const games = new GameService(deps.prisma, deps.gameProvider ?? bankProvider);
   app.decorate('deps', {
     ...deps,
     tokens: new TokenService(deps.prisma, deps.config),
-    games: new GameService(deps.prisma, deps.gameProvider ?? bankProvider),
+    games,
+    pets: new PetService(deps.prisma, games),
     arcade: new ArcadeService(deps.prisma, deps.arcadeRng),
     notifier: new Notifier(
       deps.prisma,
@@ -120,6 +126,7 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
   await app.register(pairingRoutes);
   await app.register(gameRoutes);
   await app.register(arcadeRoutes);
+  await app.register(petRoutes);
   await app.register(pushRoutes);
   registerPushTriggers(app);
 
