@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../ui/arcade_style.dart';
 import '../../../ui/sticker.dart';
 import '../../../ui/theme.dart';
+import '../arcade_controller.dart';
 import 'common.dart';
 
 class WordTilesBoard extends StatefulWidget {
@@ -185,6 +187,8 @@ class _WordTilesBoardState extends State<WordTilesBoard> {
             'swap' => '${b.isMine(last['seat']) ? 'you' : 'they'} swapped tiles',
             _ => '${b.isMine(last['seat']) ? 'you' : 'they'} passed',
           }, style: text.bodyMedium),
+        if (last != null && last['kind'] == 'place')
+          for (final word in (last['words'] as List).cast<String>().take(2)) _Meaning(word: word),
         const SizedBox(height: 10),
         // Your rack. Tap a tile, then a square.
         Wrap(
@@ -266,6 +270,36 @@ class _SwapDialogState extends State<_SwapDialog> {
           child: const Text('swap'),
         ),
       ],
+    );
+  }
+}
+
+/// "QUAY · a platform where boats load and unload", so no word feels made up.
+class _Meaning extends ConsumerWidget {
+  const _Meaning({required this.word});
+
+  final String word;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final meaning = ref.watch(wordMeaningProvider(word)).value;
+    if (meaning == null) return const SizedBox.shrink();
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: '${word.toLowerCase()} · ',
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            TextSpan(text: meaning),
+          ],
+        ),
+        style: text.bodySmall,
+        textAlign: TextAlign.center,
+      ),
     );
   }
 }

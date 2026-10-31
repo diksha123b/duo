@@ -21,6 +21,7 @@ import { bankProvider, GameService, type GameProvider } from './modules/games/se
 import { DemoBot } from './modules/demo/bot.js';
 import { demoRoutes } from './modules/demo/routes.js';
 import { pairingRoutes } from './modules/pairing/routes.js';
+import { dictionaryApi, wordRoutes, type MeaningLookup } from './modules/words/routes.js';
 import { petRoutes } from './modules/pet/routes.js';
 import { PetService } from './modules/pet/service.js';
 import { userRoutes } from './modules/users/routes.js';
@@ -69,6 +70,8 @@ export type BuildDeps = Omit<Deps, 'tokens' | 'games' | 'arcade' | 'pets' | 'not
   pushSender?: PushSender | null;
   /** How long the demo bot "thinks" before acting. */
   botDelayMs?: number;
+  /** Word meanings for Word Tiles (tests pass a fake). */
+  lookupMeaning?: MeaningLookup;
 };
 
 export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {}) {
@@ -134,6 +137,7 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
   await app.register(petRoutes);
   await app.register(pushRoutes);
   await app.register(demoRoutes);
+  await app.register(wordRoutes, { lookup: deps.lookupMeaning ?? dictionaryApi });
   registerPushTriggers(app);
   app.decorate('demoBot', new DemoBot(app, deps.botDelayMs ?? 1500));
   app.demoBot.register();

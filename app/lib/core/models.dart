@@ -413,10 +413,18 @@ class MatchInfo {
     this.version = 0,
     this.seat = 0,
     this.view = const {},
+    this.quick = false,
+    this.botLevel,
   });
 
   final String id;
   final ArcadeKind kind;
+
+  /// Word Tiles: the short game with about half the tiles.
+  final bool quick;
+
+  /// Demo mode: how strong the bot plays ('easy', 'normal', 'hard').
+  final String? botLevel;
   final bool active;
   final bool yourTurn;
   final MatchResult? result;
@@ -443,6 +451,8 @@ class MatchInfo {
     version: j['version'] as int? ?? 0,
     seat: j['seat'] as int? ?? 0,
     view: Map<String, dynamic>.from(j['view'] as Map? ?? const {}),
+    quick: (j['settings'] as Map?)?['quick'] == true,
+    botLevel: (j['settings'] as Map?)?['botLevel'] as String?,
   );
 }
 

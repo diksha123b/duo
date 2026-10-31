@@ -5,6 +5,12 @@ import { track } from '../../lib/events.js';
 import { ENGINES } from './engines/index.js';
 import { MoveError, type Rng, type Seat } from './engines/types.js';
 
+export type BotLevel = 'easy' | 'normal' | 'hard';
+export interface MatchSettings {
+  quick?: boolean;
+  botLevel?: BotLevel;
+}
+
 const cryptoRng: Rng = { int: (max) => randomInt(max) };
 
 export class ArcadeService {
@@ -78,7 +84,7 @@ export class ArcadeService {
   }
 
   /** Starts a game of `kind`, or returns the one already in progress. The starter moves first. */
-  async start(userId: string, kind: ArcadeKind) {
+  async start(userId: string, kind: ArcadeKind, settings: MatchSettings = {}) {
     const pair = await this.pairOf(userId);
     const existing = await this.prisma.match.findFirst({
       where: { pairId: pair.id, kind, status: 'ACTIVE' },
@@ -86,7 +92,13 @@ export class ArcadeService {
     if (existing) return { match: this.serialize(existing, userId), created: false };
     const other = pair.userAId === userId ? pair.userBId : pair.userAId;
     const match = await this.prisma.match.create({
-      data: { pairId: pair.id, kind, players: [userId, other], state: ENGINES[kind].init(this.rng) },
+      data: {
+        pairId: pair.id,
+        kind,
+        players: [userId, other],
+        state: ENGINES[kind].init(this.rng, { quick: settings.quick }),
+        settings: { ...settings },
+      },
     });
     await track(this.prisma, 'game_started', { userId, pairId: pair.id, props: { arcade: kind } });
     return { match: this.serialize(match, userId), created: true };
@@ -166,6 +178,7 @@ export class ArcadeService {
       status: m.status,
       yourTurn: m.status === 'ACTIVE' && outcome.turn === seat,
       result: this.result(m, userId),
+      settings: m.settings as MatchSettings,
       updatedAt: m.updatedAt,
     };
   }

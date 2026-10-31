@@ -302,6 +302,8 @@ model Match {
   state     Json
   // Bumped on every move; moves must name the version they were made against.
   version   Int         @default(0)
+  // Chosen when the game starts: { quick?: boolean, botLevel?: 'easy' | 'normal' | 'hard' }.
+  settings  Json        @default("{}")
   status    MatchStatus @default(ACTIVE)
   winnerId  String?     @map("winner_id") @db.Uuid
   createdAt DateTime    @default(now()) @map("created_at")

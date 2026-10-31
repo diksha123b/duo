@@ -10,6 +10,7 @@ import '../../ui/states.dart';
 import '../../ui/theme.dart';
 import '../pairing/pair_controller.dart';
 import 'arcade_controller.dart';
+import 'new_game.dart';
 import 'boards/chess_board.dart';
 import 'boards/common.dart';
 import 'boards/dots_and_boxes.dart';
@@ -94,10 +95,28 @@ class MatchScreen extends ConsumerWidget {
                     StickerButton(
                       label: 'rematch',
                       color: style!.color,
-                      onPressed: () async {
-                        final id = await ref.read(arcadeProvider.notifier).start(m.kind);
-                        if (context.mounted) context.pushReplacement('/arcade/$id');
-                      },
+                      onPressed: () => openGame(context, ref, m.kind, previous: m),
+                    ),
+                    const SizedBox(height: 10),
+                    // Done with this game: somewhere else to go.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.sports_esports_rounded),
+                            label: const Text('other games'),
+                            onPressed: () => context.go('/arcade'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.home_rounded),
+                            label: const Text('home'),
+                            onPressed: () => context.go('/home'),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ],

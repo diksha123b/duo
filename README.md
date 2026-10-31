@@ -22,9 +22,9 @@ both finish. Then react, chat about it, challenge each other in the arcade, and 
 
 - **Six daily game types** on one engine: *Who knows whom better*, *Would you rather*, *Team
   trivia*, *Emoji decode*, *Agree-o-meter* and *Rank it*
-- **Demo mode**: try Duo alone. Sam, a demo bot, answers the daily game after you, makes its
-  arcade moves (it takes wins, blocks yours and finds real words in Word Tiles), reacts and chats
-  about results, and pats the pet back
+- **Demo mode**: try Duo alone. Sam, a demo bot, answers the daily game after you, plays every
+  arcade game at the level you pick (easy, normal or hard), reacts and chats about results, and
+  pats the pet back. On easy and normal it sticks to ~10k everyday words in Word Tiles
 - **Any relationship**: pick a preset (partners, best friends, siblings, parent & child,
   colleagues…) or type your own label. Prompts and copy adapt to it, e.g. no romantic questions
   between siblings
@@ -43,6 +43,8 @@ both finish. Then react, chat about it, challenge each other in the arcade, and 
   reveal, live on both screens
 - **Push notifications** (web push): "they played", "the results are in", "your move", new
   messages. Skipped while you have Duo open
+- **Word Tiles extras**: a quick game with half the tiles (~10 minutes), racks that always get a
+  vowel while the bag has one, and the meaning of each word played, looked up once and cached
 - **Two-player arcade**, server-authoritative and turn-based: tic-tac-toe, four in a row, dots and
   boxes, chess, ludo (the die rolls itself, both players see both dice) and Word Tiles (a crossword
   tile game checked against a 170k-word dictionary)
@@ -54,6 +56,11 @@ both finish. Then react, chat about it, challenge each other in the arcade, and 
 - Email/password and Google sign-in, rotating refresh tokens, Redis rate limiting
 - Sticker-book UI with light/dark themes and reduce-motion support; history, analytics events,
   Sentry on app, API and worker
+
+Word lists: the [ENABLE](https://everything2.com/title/ENABLE+word+list) dictionary (public
+domain) checks words; the bot's everyday words come from
+[SCOWL](http://wordlist.aspell.net/) (see `server/data/SCOWL-LICENSE.txt`). Meanings come from the
+free [Dictionary API](https://dictionaryapi.dev/).
 
 ## Architecture
 

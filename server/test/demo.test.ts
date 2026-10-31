@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { botMove, wordTilesMove } from '../src/modules/demo/botMoves.js';
 import { ENGINES } from '../src/modules/arcade/engines/index.js';
 import type { Rng } from '../src/modules/arcade/engines/types.js';
@@ -129,5 +130,81 @@ describe('bot moves', () => {
     state = { ...state, racks: [['C', 'A', 'T', 'S', 'E', 'R', 'D'], state.racks[1]] };
     const move = wordTilesMove(state, 0, 2000) as { type: string };
     expect(move.type).toBe('place');
+  });
+});
+
+describe('bot levels and word tiles options', () => {
+  const common = new Set(
+    readFileSync(new URL('../data/common-words.txt', import.meta.url), 'utf8')
+      .split('\n')
+      .map((w) => w.trim().toUpperCase()),
+  );
+
+  it('hard always takes the win; easy sometimes misses it', () => {
+    const win = { board: [0, 0, null, 1, 1, null, 0, null, null], turn: 1 };
+    for (let i = 0; i < 30; i++) expect(botMove('TIC_TAC_TOE', win, 1, rng, 'hard')).toEqual({ cell: 5 });
+    const easy = Array.from({ length: 60 }, () =>
+      JSON.stringify(botMove('TIC_TAC_TOE', win, 1, rng, 'easy')),
+    );
+    expect(new Set(easy).size).toBeGreaterThan(1);
+  });
+
+  it('plays everyday words in word tiles unless it is on hard', () => {
+    for (const level of ['easy', 'normal'] as const) {
+      let state = ENGINES.WORD_TILES.init(rng);
+      state = { ...state, racks: [['C', 'A', 'T', 'S', 'E', 'R', 'D'], state.racks[1]] };
+      const move = wordTilesMove(state, 0, 2000, level) as {
+        type: string;
+        tiles: { letter: string; c: number }[];
+      };
+      expect(move.type).toBe('place');
+      const word = [...move.tiles]
+        .sort((a, b) => a.c - b.c)
+        .map((t) => t.letter)
+        .join('');
+      expect(common.has(word), `${level}: ${word}`).toBe(true);
+    }
+  });
+
+  it('a quick game has about half the tiles', () => {
+    const full = ENGINES.WORD_TILES.init(rng);
+    const quick = ENGINES.WORD_TILES.init(rng, { quick: true });
+    expect(full.bag.length).toBe(94 - 14);
+    expect(quick.bag.length).toBeLessThan(45);
+  });
+
+  it('never deals a rack without a vowel while the bag has one', () => {
+    for (let i = 0; i < 100; i++) {
+      const s = ENGINES.WORD_TILES.init(rng, { quick: i % 2 === 0 });
+      for (const rack of s.racks)
+        expect(
+          rack.some((l: string) => 'AEIOU'.includes(l)),
+          rack.join(''),
+        ).toBe(true);
+    }
+  });
+
+  it('remembers the options a game was started with', async () => {
+    const t = (await startDemo()).tokens.accessToken;
+    const res = await ctx.app.inject({
+      method: 'POST',
+      url: '/arcade/matches',
+      headers: auth(t),
+      payload: { kind: 'WORD_TILES', quick: true, botLevel: 'easy' },
+    });
+    expect(res.json().match.settings).toEqual({ quick: true, botLevel: 'easy' });
+    expect(res.json().match.view.bagCount).toBeLessThan(45);
+  });
+
+  it('looks up what a word means, once', async () => {
+    const t = (await startDemo()).tokens.accessToken;
+    const quay = await ctx.app.inject({ method: 'GET', url: '/words/quay', headers: auth(t) });
+    expect(quay.json()).toEqual({ word: 'QUAY', meaning: 'a platform where boats load and unload' });
+    expect(await ctx.redis.get('meaning:QUAY')).toBe('a platform where boats load and unload');
+    const unknown = await ctx.app.inject({ method: 'GET', url: '/words/zzxq', headers: auth(t) });
+    expect(unknown.json().meaning).toBeNull();
+    expect((await ctx.app.inject({ method: 'GET', url: '/words/a1', headers: auth(t) })).statusCode).toBe(
+      400,
+    );
   });
 });

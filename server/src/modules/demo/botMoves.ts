@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { ArcadeKind } from '@prisma/client';
 import { Chess, type Move as ChessMove } from 'chess.js';
 import { SIZE } from '../arcade/engines/dotsAndBoxes.js';
@@ -5,6 +6,7 @@ import { COLS } from '../arcade/engines/fourInARow.js';
 import { ENGINES } from '../arcade/engines/index.js';
 import { HOME, movableTokens } from '../arcade/engines/ludo.js';
 import { other, type Rng, type Seat } from '../arcade/engines/types.js';
+import type { BotLevel } from '../arcade/service.js';
 import {
   CENTER,
   checkPlacement,
@@ -16,8 +18,12 @@ import {
   type Placed,
 } from '../arcade/engines/wordTiles.js';
 
-// The demo bot's moves. Friendly rather than strong: it takes a win, blocks
-// yours, and in chess avoids giving pieces away, but it doesn't plan ahead.
+// The demo bot's moves. Each game scores every legal move (take a win, block
+// yours, don't hang chess pieces…), then the level decides how often the bot
+// actually plays its best one:
+//   hard   always the best move (Word Tiles: any word in the dictionary)
+//   normal usually the best, sometimes just a good one (common words only)
+//   easy   often a random move (common words, smaller plays)
 
 type Scored = { move: unknown; score: number };
 
@@ -29,6 +35,18 @@ function best(candidates: Scored[], rng: Rng): unknown | null {
   if (candidates.length === 0) return null;
   const top = Math.max(...candidates.map((c) => c.score));
   const pool = candidates.filter((c) => c.score >= top - 0.5);
+  return pool[rng.int(pool.length)]!.move;
+}
+
+/** How often each level plays its best move; otherwise it picks from a wider pool. */
+const BEST_CHANCE: Record<BotLevel, number> = { hard: 100, normal: 70, easy: 30 };
+
+function choose(candidates: Scored[], level: BotLevel, rng: Rng): unknown | null {
+  if (candidates.length === 0) return null;
+  if (rng.int(100) < BEST_CHANCE[level]) return best(candidates, rng);
+  const sorted = [...candidates].sort((a, b) => b.score - a.score);
+  // Normal still picks a decent move; easy can pick anything legal.
+  const pool = level === 'normal' ? sorted.slice(0, Math.ceil(sorted.length / 2)) : sorted;
   return pool[rng.int(pool.length)]!.move;
 }
 
@@ -47,7 +65,13 @@ const winsFor = (kind: ArcadeKind, state: AnyState, seat: Seat) =>
   ENGINES[kind].outcome(state).winner === seat;
 
 /** Win if we can, otherwise block a square or column that would win for them. */
-function lineGame(kind: 'TIC_TAC_TOE' | 'FOUR_IN_A_ROW', state: AnyState, seat: Seat, rng: Rng) {
+function lineGame(
+  kind: 'TIC_TAC_TOE' | 'FOUR_IN_A_ROW',
+  state: AnyState,
+  seat: Seat,
+  rng: Rng,
+  level: BotLevel,
+) {
   const opp = other(seat);
   const moves =
     kind === 'TIC_TAC_TOE'
@@ -77,11 +101,11 @@ function lineGame(kind: 'TIC_TAC_TOE' | 'FOUR_IN_A_ROW', state: AnyState, seat: 
     }
     scored.push({ move, score });
   }
-  return best(scored, rng);
+  return choose(scored, level, rng);
 }
 
 /** Take boxes when offered; otherwise avoid drawing a box's third side. */
-function dotsAndBoxes(state: AnyState, seat: Seat, rng: Rng) {
+function dotsAndBoxes(state: AnyState, seat: Seat, rng: Rng, level: BotLevel) {
   const moves = [
     ...[...Array((SIZE + 1) * SIZE).keys()].map((i) => ({ dir: 'h', r: Math.floor(i / SIZE), c: i % SIZE })),
     ...[...Array(SIZE * (SIZE + 1)).keys()].map((i) => ({
@@ -103,13 +127,13 @@ function dotsAndBoxes(state: AnyState, seat: Seat, rng: Rng) {
     for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (sides(next, r, c) === 3) gifts++;
     scored.push({ move, score: gained * 10 - (gained ? 0 : gifts * 5) });
   }
-  return best(scored, rng);
+  return choose(scored, level, rng);
 }
 
 const PIECE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
 
 /** Greedy with one move of lookahead: grab material, don't leave pieces hanging. */
-function chess(state: AnyState, rng: Rng) {
+function chess(state: AnyState, rng: Rng, level: BotLevel) {
   const game = new Chess(state.fen);
   const scored: Scored[] = game.moves({ verbose: true }).map((m: ChessMove) => {
     const after = new Chess(state.fen);
@@ -122,12 +146,12 @@ function chess(state: AnyState, rng: Rng) {
     );
     return { move: toMove(m), score: gain - risk + (after.inCheck() ? 0.3 : 0) };
   });
-  return best(scored, rng);
+  return choose(scored, level, rng);
 }
 const toMove = (m: ChessMove) => ({ from: m.from, to: m.to, ...(m.promotion && { promotion: m.promotion }) });
 
 /** Capture if possible, then get a token home, then out of base. */
-function ludo(state: AnyState, seat: Seat, rng: Rng) {
+function ludo(state: AnyState, seat: Seat, rng: Rng, level: BotLevel) {
   if (state.roll === null) return null;
   const scored: Scored[] = movableTokens(state, seat, state.roll).map((token) => {
     const move = { type: 'move', token };
@@ -139,14 +163,23 @@ function ludo(state: AnyState, seat: Seat, rng: Rng) {
     if (from === -1) score += 20;
     return { move, score };
   });
-  return best(scored, rng);
+  return choose(scored, level, rng);
 }
 
-/**
- * Finds the best-scoring word it can place within a time budget: on an empty
- * board, across the centre; otherwise through a letter already on the board.
- */
-export function wordTilesMove(state: AnyState, seat: Seat, budgetMs = 400): unknown {
+let common: string[] | null = null;
+/** ~10k everyday words (SCOWL levels 10–20, see data/SCOWL-LICENSE.txt). */
+function commonWords(): string[] {
+  common ??= readFileSync(new URL('../../../data/common-words.txt', import.meta.url), 'utf8')
+    .split('\n')
+    .map((w) => w.trim().toUpperCase())
+    .filter(Boolean);
+  return common;
+}
+
+type Play = { tiles: Placed[]; points: number; length: number };
+
+/** Every placement of `list` words it can find within the time budget. */
+function findPlays(state: AnyState, seat: Seat, list: string[], budgetMs: number): Play[] {
   const rack: string[] = state.racks[seat];
   const board: (string | null)[] = state.board;
   const have = new Map<string, number>();
@@ -154,21 +187,21 @@ export function wordTilesMove(state: AnyState, seat: Seat, budgetMs = 400): unkn
   const empty = board.every((x) => x === null);
   const onBoard = new Set(board.filter(Boolean) as string[]);
   const filled = board.flatMap((l, i) => (l ? [{ r: Math.floor(i / N), c: i % N, l }] : []));
+  const plays: Play[] = [];
+  const seen = new Set<string>();
 
-  let bestTiles: Placed[] | null = null;
-  let bestPoints = 0;
   const consider = (tiles: Placed[]) => {
     if (tiles.length === 0) return;
     const need = new Map<string, number>();
     for (const t of tiles) need.set(t.letter, (need.get(t.letter) ?? 0) + 1);
     for (const [l, n] of need) if ((have.get(l) ?? 0) < n) return;
+    const key = tiles.map((t) => `${t.r},${t.c},${t.letter}`).join('|');
+    if (seen.has(key)) return;
+    seen.add(key);
     try {
       checkPlacement(board, tiles);
       const { words: formed, points } = scorePlacement(board, tiles);
-      if (formed.length > 0 && formed.every(isWord) && points > bestPoints) {
-        bestPoints = points;
-        bestTiles = tiles;
-      }
+      if (formed.length > 0 && formed.every(isWord)) plays.push({ tiles, points, length: tiles.length });
     } catch {
       // Not a legal placement.
     }
@@ -187,7 +220,6 @@ export function wordTilesMove(state: AnyState, seat: Seat, budgetMs = 400): unkn
     consider(tiles);
   };
 
-  const list = [...words()];
   const start = Math.floor(Math.random() * list.length);
   const deadline = Date.now() + budgetMs;
   for (let n = 0; n < list.length && Date.now() < deadline; n++) {
@@ -213,25 +245,60 @@ export function wordTilesMove(state: AnyState, seat: Seat, budgetMs = 400): unkn
       }
     }
   }
-  if (bestTiles) return { type: 'place', tiles: bestTiles };
+  return plays;
+}
+
+/**
+ * Word Tiles. Hard searches the whole dictionary and plays the top score.
+ * Normal and easy only use everyday words (falling back to the dictionary if
+ * nothing fits): normal picks from its better plays, easy from the smaller ones.
+ */
+export function wordTilesMove(
+  state: AnyState,
+  seat: Seat,
+  budgetMs = 400,
+  level: BotLevel = 'normal',
+  rng: Rng = scratch,
+): unknown {
+  let plays = findPlays(state, seat, level === 'hard' ? [...words()] : commonWords(), budgetMs);
+  if (plays.length === 0 && level !== 'hard') plays = findPlays(state, seat, [...words()], budgetMs);
+  if (plays.length > 0) {
+    plays.sort((a, b) => b.points - a.points);
+    const pick =
+      level === 'hard'
+        ? plays[0]!
+        : level === 'normal'
+          ? plays[rng.int(Math.max(1, Math.ceil(plays.length * 0.3)))]!
+          : plays.slice(Math.floor(plays.length * 0.4))[
+              rng.int(plays.length - Math.floor(plays.length * 0.4))
+            ]!;
+    return { type: 'place', tiles: pick.tiles };
+  }
   // Nothing fits: swap the clunkiest letters while the bag allows, otherwise pass.
+  const rack: string[] = state.racks[seat];
   const clunky = [...rack].sort((a, b) => LETTERS[b]![0] - LETTERS[a]![0]).slice(0, 3);
   return state.bag.length >= clunky.length ? { type: 'swap', letters: clunky } : { type: 'pass' };
 }
 
 /** The bot's move for `kind`, or null if it has nothing to do. */
-export function botMove(kind: ArcadeKind, state: AnyState, seat: Seat, rng: Rng): unknown | null {
+export function botMove(
+  kind: ArcadeKind,
+  state: AnyState,
+  seat: Seat,
+  rng: Rng,
+  level: BotLevel = 'normal',
+): unknown | null {
   switch (kind) {
     case 'TIC_TAC_TOE':
     case 'FOUR_IN_A_ROW':
-      return lineGame(kind, state, seat, rng);
+      return lineGame(kind, state, seat, rng, level);
     case 'DOTS_AND_BOXES':
-      return dotsAndBoxes(state, seat, rng);
+      return dotsAndBoxes(state, seat, rng, level);
     case 'CHESS':
-      return chess(state, rng);
+      return chess(state, rng, level);
     case 'LUDO':
-      return ludo(state, seat, rng);
+      return ludo(state, seat, rng, level);
     case 'WORD_TILES':
-      return wordTilesMove(state, seat);
+      return wordTilesMove(state, seat, 400, level, rng);
   }
 }

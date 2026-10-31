@@ -13,8 +13,18 @@ export async function arcadeRoutes(app: FastifyInstance) {
   app.get('/arcade', auth, async (req) => arcade.list(req.userId));
 
   app.post('/arcade/matches', auth, async (req, reply) => {
-    const body = parse(z.object({ kind }), req.body);
-    const { match, created } = await arcade.start(req.userId, body.kind);
+    const body = parse(
+      z.object({
+        kind,
+        quick: z.boolean().optional(),
+        botLevel: z.enum(['easy', 'normal', 'hard']).optional(),
+      }),
+      req.body,
+    );
+    const { match, created } = await arcade.start(req.userId, body.kind, {
+      ...(body.quick !== undefined && { quick: body.quick }),
+      ...(body.botLevel && { botLevel: body.botLevel }),
+    });
     if (created) {
       reply.code(201);
       app.events.emit('match:updated', { matchId: match.id });

@@ -126,8 +126,19 @@ function takeFromRack(rack: string[], letters: string[]): string[] {
   return left;
 }
 
+/**
+ * Refills a rack from the bag. A rack is never left without a vowel while the
+ * bag still has one: the last tile drawn is a vowel if it has to be, so nobody
+ * is stuck with seven consonants for turn after turn.
+ */
 function draw(state: State, seat: Seat) {
-  while (state.racks[seat].length < RACK && state.bag.length > 0) state.racks[seat].push(state.bag.pop()!);
+  const rack = state.racks[seat];
+  while (rack.length < RACK && state.bag.length > 0) {
+    const last = rack.length === RACK - 1 || state.bag.length === 1;
+    const needVowel = last && !rack.some((l) => VOWELS.has(l));
+    const i = needVowel ? state.bag.findLastIndex((l) => VOWELS.has(l)) : -1;
+    rack.push(i >= 0 ? state.bag.splice(i, 1)[0]! : state.bag.pop()!);
+  }
 }
 
 /** All words (with their cells) the placed tiles form, and the points they score. */
@@ -226,9 +237,13 @@ export function checkPlacement(board: (string | null)[], tiles: Placed[]) {
   if (!touches) throw new MoveError('Your word must connect to tiles on the board');
 }
 
+const VOWELS = new Set(['A', 'E', 'I', 'O', 'U']);
+
 export const wordTiles: Engine<State, Move> = {
-  init(rng) {
-    const bag = Object.entries(LETTERS).flatMap(([l, [, n]]) => Array<string>(n).fill(l));
+  init(rng, options) {
+    // A quick game uses about half of each letter (at least one of each).
+    const copies = (n: number) => (options?.quick ? Math.max(1, Math.round(n / 2)) : n);
+    const bag = Object.entries(LETTERS).flatMap(([l, [, n]]) => Array<string>(copies(n)).fill(l));
     for (let i = bag.length - 1; i > 0; i--) {
       const j = rng.int(i + 1);
       [bag[i], bag[j]] = [bag[j]!, bag[i]!];

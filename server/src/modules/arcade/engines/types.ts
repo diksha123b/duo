@@ -22,8 +22,14 @@ export interface Rng {
  * state and never mutates its input, so a rejected move leaves nothing behind.
  * The server is the only place moves are judged, so clients can't cheat.
  */
+/** Options picked when a game starts. Engines ignore what doesn't apply to them. */
+export interface GameOptions {
+  /** Word Tiles: about half the tiles, for a ~10 minute game. */
+  quick?: boolean;
+}
+
 export interface Engine<S, M> {
-  init(rng: Rng): S;
+  init(rng: Rng, options?: GameOptions): S;
   /** Shape of a move from the client, validated before `apply`. */
   move: z.ZodType<M>;
   apply(state: S, seat: Seat, move: M, rng: Rng): S;

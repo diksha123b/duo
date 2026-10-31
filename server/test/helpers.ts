@@ -29,6 +29,7 @@ export function setupTestApp(opts: { pushSender?: PushSender | null } = {}) {
       verifyGoogle: fakeGoogle,
       pushSender: opts.pushSender,
       botDelayMs: 0,
+      lookupMeaning: async (word) => (word === 'QUAY' ? 'a platform where boats load and unload' : null),
     });
   });
 

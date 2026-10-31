@@ -8,6 +8,7 @@ import '../../ui/sticker.dart';
 import '../../ui/states.dart';
 import '../../ui/theme.dart';
 import 'arcade_controller.dart';
+import 'new_game.dart';
 
 /// The arcade: every live game, what's in progress, and the head-to-head record.
 class ArcadeScreen extends ConsumerWidget {
@@ -17,15 +18,6 @@ class ArcadeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final lobby = ref.watch(arcadeProvider);
     final text = Theme.of(context).textTheme;
-
-    Future<void> open(ArcadeKind kind) async {
-      try {
-        final id = await ref.read(arcadeProvider.notifier).start(kind);
-        if (context.mounted) context.push('/arcade/$id');
-      } catch (e) {
-        if (context.mounted) showError(context, e);
-      }
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -61,7 +53,7 @@ class ArcadeScreen extends ConsumerWidget {
                           active: l.activeOf(kind),
                           record: l.record[kind],
                           tilt: i.isEven ? -1.2 : 1.2,
-                          onTap: () => open(kind),
+                          onTap: () => openGame(context, ref, kind),
                         ),
                     ],
                   ),

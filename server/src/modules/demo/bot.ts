@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { ENGINES } from '../arcade/engines/index.js';
+import type { MatchSettings } from '../arcade/service.js';
 import type { Rng, Seat } from '../arcade/engines/types.js';
 import { REACTIONS, type SubmittedAnswer } from '../games/service.js';
 import { botMove } from './botMoves.js';
@@ -134,7 +135,8 @@ export class DemoBot {
     const state = engine.settle ? engine.settle(match.state, random) : match.state;
     if (seat < 0 || engine.outcome(state).turn !== seat) return;
 
-    const move = botMove(match.kind, state, seat, random);
+    const level = (match.settings as MatchSettings).botLevel ?? 'normal';
+    const move = botMove(match.kind, state, seat, random, level);
     if (move === null) return;
     try {
       await arcade.move(bot.id, matchId, match.version, move);

@@ -14,12 +14,20 @@ class ArcadeController extends AsyncNotifier<ArcadeLobby> {
   }
 
   /// Starts a game (or returns the one already running) and gives back its id.
-  Future<String> start(ArcadeKind kind) async {
-    final res = await ref.read(apiProvider).post('/arcade/matches', body: {'kind': kind.wire});
+  Future<String> start(ArcadeKind kind, {bool? quick, String? botLevel}) async {
+    final res = await ref
+        .read(apiProvider)
+        .post('/arcade/matches', body: {'kind': kind.wire, 'quick': ?quick, 'botLevel': ?botLevel});
     ref.invalidateSelf();
     return (res['match'] as Map)['id'] as String;
   }
 }
+
+/// What a word means, for Word Tiles ("QUAY: a platform where boats dock").
+final wordMeaningProvider = FutureProvider.family<String?, String>((ref, word) async {
+  final res = await ref.read(apiProvider).get('/words/${Uri.encodeComponent(word)}');
+  return res['meaning'] as String?;
+});
 
 final matchProvider = AsyncNotifierProvider.family<MatchController, MatchInfo, String>(MatchController.new);
 
