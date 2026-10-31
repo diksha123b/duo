@@ -13,6 +13,8 @@ const question = z.object({
   correctOption: z.number().int().min(0).optional(),
   // WHO_KNOWS_WHOM only: which partner the question is about.
   about: z.enum(['A', 'B']).optional(),
+  // SHARED_TRIVIA and EMOJI_DECODE: why the answer is right, shown with the results.
+  explanation: z.string().trim().min(1).max(400).optional(),
 });
 
 export const GAME_TYPES = [
@@ -46,6 +48,7 @@ export const gameContentSchema = z
       if (hasAnswerKey(game.type)) {
         if (q.correctOption === undefined) at('needs correctOption');
         else if (q.correctOption >= q.options.length) at('correctOption out of range');
+        if (!q.explanation) at('needs an explanation');
       }
       if (game.type === 'EMOJI_DECODE' && q.options.length !== 4) at('emoji decode needs exactly 4 options');
       if (game.type === 'AGREE_O_METER' && q.options.join('|') !== AGREE_SCALE.join('|'))

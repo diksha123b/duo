@@ -8,13 +8,14 @@ import { costUsd, type LlmClient, type LlmGame } from './llm.js';
 
 const SYSTEM = `You write short, warm daily games for two people who play together in the Duo app.
 Make every question specific to their interests where you can, light-hearted, and safe for a general audience.
-Keep prompts under 150 characters and options under 60 characters. Never repeat an option within a question.`;
+Keep prompts under 150 characters and options under 60 characters. Never repeat an option within a question.
+Set explanation to null unless the game type asks for one.`;
 
 const INSTRUCTIONS: Record<GameTypeName, string> = {
   WOULD_YOU_RATHER: `Game type: would you rather. Write 5 questions. Each has exactly 2 options; the prompt is a short lead-in like "Would you rather…". Set correctOption and about to null.`,
   WHO_KNOWS_WHOM: `Game type: who knows whom better. Write 6 questions with 3 or 4 options each: 3 about partner A and 3 about partner B (set "about" to "A" or "B"). The partner the question is about answers honestly; the other guesses. Phrase prompts neutrally (e.g. "Ideal weekend?") because both partners see the same text. Set correctOption to null.`,
-  SHARED_TRIVIA: `Game type: shared trivia. Write 5 factual multiple-choice questions with 4 options each, drawn from both partners' interests. Set correctOption to the 0-based index of the right answer; only use facts you are certain of. Set about to null.`,
-  EMOJI_DECODE: `Game type: emoji decode. Write 5 puzzles. The prompt is 2–4 emojis that clue a well-known movie, song, food, place or brand tied to their interests, followed by the category in brackets, e.g. "🦁👑🌅 (movie)". Give exactly 4 plausible options and set correctOption to the 0-based index of the answer; only use clues you are certain decode unambiguously. Set about to null.`,
+  SHARED_TRIVIA: `Game type: shared trivia. Write 5 factual multiple-choice questions with 4 options each, drawn from both partners' interests. Set correctOption to the 0-based index of the right answer; only use facts you are certain of. Set explanation to one or two friendly sentences on why it's right, mentioning the most tempting wrong option and why it's wrong. Set about to null.`,
+  EMOJI_DECODE: `Game type: emoji decode. Write 5 puzzles. The prompt is 2–4 emojis that clue a well-known movie, song, food, place or brand tied to their interests, followed by the category in brackets, e.g. "🦁👑🌅 (movie)". Give exactly 4 options and set correctOption to the 0-based index of the answer. Close decoys are fine, but every emoji must fit the answer better than any decoy. Set explanation to one or two friendly sentences that read the clues one by one and say why the closest decoy doesn't fit. Set about to null.`,
   AGREE_O_METER: `Game type: agree-o-meter. Write 5 light, non-divisive "hot take" statements tied to their interests (no politics, religion or anything hurtful), each under 100 characters, e.g. "Rainy days are the best days." Each partner rates how much they agree. Set options to an empty list (the app supplies the scale), and correctOption and about to null.`,
   RANK_IT: `Game type: rank it. Write 5 questions. The prompt is a short instruction like "Rank these weekend plans"; options are exactly 4 distinct items drawn from their interests that people would genuinely disagree on. Set correctOption and about to null.`,
 };
@@ -41,6 +42,7 @@ export function toContent(type: GameTypeName, out: LlmGame) {
       options: type === 'AGREE_O_METER' ? AGREE_SCALE : q.options,
       correctOption: q.correctOption ?? undefined,
       about: q.about ?? undefined,
+      explanation: q.explanation ?? undefined,
     })),
   });
 }
@@ -57,7 +59,7 @@ export function toContent(type: GameTypeName, out: LlmGame) {
 export function createAiProvider(opts: AiProviderOptions): GameProvider {
   const { prisma, redis, llm, log } = opts;
 
-  return async ({ pair, day, type, allowFallback = true }) => {
+  return async ({ pair, day, type, allowFallback = true, seen = [] }) => {
     const cached = await redis.get(cacheKey(pair.id, day));
     if (cached) {
       const parsed = gameContentSchema.safeParse(JSON.parse(cached));
@@ -95,14 +97,14 @@ export function createAiProvider(opts: AiProviderOptions): GameProvider {
       await record({ status, error, ...usage });
       log.warn({ pairId: pair.id, day, status, error }, 'AI game generation failed');
       if (!allowFallback) throw new GenerationError(error);
-      return bankProvider({ pair, day, type });
+      return bankProvider({ pair, day, type, seen });
     };
 
     let result;
     try {
       result = await llm({
         system: SYSTEM,
-        prompt: await buildPrompt(prisma, pair, type),
+        prompt: await buildPrompt(prisma, pair, type, seen),
         signal: AbortSignal.timeout(opts.timeoutMs),
       });
     } catch (err) {
@@ -147,7 +149,12 @@ function relationshipLine(pair: Pair): string {
   }
 }
 
-async function buildPrompt(prisma: PrismaClient, pair: Pair, type: GameTypeName): Promise<string> {
+async function buildPrompt(
+  prisma: PrismaClient,
+  pair: Pair,
+  type: GameTypeName,
+  seen: string[],
+): Promise<string> {
   const profiles = await prisma.profile.findMany({ where: { userId: { in: [pair.userAId, pair.userBId] } } });
   const describe = (userId: string, label: string) => {
     const p = profiles.find((x) => x.userId === userId);
@@ -164,5 +171,12 @@ async function buildPrompt(prisma: PrismaClient, pair: Pair, type: GameTypeName)
     '',
     INSTRUCTIONS[type],
     'Give the game a short, fun title (under 50 characters) that hints at their shared interests.',
+    // Keep it fresh: they've already played these.
+    seen.length
+      ? `They have already had these questions, so don't repeat them or ask near-copies:\n${seen
+          .slice(0, 40)
+          .map((q) => `- ${q}`)
+          .join('\n')}`
+      : '',
   ].join('\n');
 }

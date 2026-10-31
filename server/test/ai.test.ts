@@ -20,6 +20,7 @@ const wyr: LlmGame = {
     options: [`Option A${i}`, `Option B${i}`],
     correctOption: null,
     about: null,
+    explanation: null,
   })),
 };
 

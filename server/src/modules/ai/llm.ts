@@ -13,6 +13,7 @@ export const llmGameSchema = z.object({
       options: z.array(z.string()),
       correctOption: z.number().int().nullable(),
       about: z.enum(['A', 'B']).nullable(),
+      explanation: z.string().nullable(),
     }),
   ),
 });

@@ -60,15 +60,18 @@ void main() {
             'myChoice': 1,
             'partnerChoice': 1,
             'correctOption': 1,
+            'explanation': 'Rusty iron in its soil makes it look red.',
           },
         ],
       ),
     );
     await tester.pumpWidget(wrap(ResultsView(game: game, partnerName: 'Ravi')));
     await tester.pumpAndSettle();
+    expect(find.text('Rusty iron in its soil makes it look red.'), findsOneWidget);
+    expect(find.textContaining('great minds'), findsNothing);
     expect(find.text('big brain duo.'), findsOneWidget);
     expect(find.text('2 / 2'), findsOneWidget);
-    expect(find.text('answer: Mars'), findsOneWidget);
+    expect(find.text('💡 answer: Mars', findRichText: true), findsOneWidget);
     expect(find.byIcon(Icons.check_rounded), findsNWidgets(2));
   });
 
@@ -170,5 +173,34 @@ void main() {
     await tester.pumpAndSettle();
     expect(sent, ['coffee gang']);
     expect(find.text('coffee gang'), findsNothing, reason: 'the input clears after sending');
+  });
+
+  testWidgets('emoji decode explains the answer and notices when you both guessed the same', (tester) async {
+    final game = Game.fromJson(
+      gameJson(
+        type: 'EMOJI_DECODE',
+        meSubmitted: true,
+        partnerSubmitted: true,
+        completed: true,
+        summary: {'kind': 'trivia', 'myScore': 0, 'partnerScore': 0, 'total': 1},
+        questions: [
+          {
+            'id': 'q1',
+            'prompt': '⭐⚔️🌌 (movie)',
+            'options': ['Interstellar', 'Star Wars', 'Star Trek', 'Avatar'],
+            'about': null,
+            'myChoice': 0,
+            'partnerChoice': 0,
+            'correctOption': 1,
+            'explanation': '⭐ star + ⚔️ wars + 🌌 a galaxy far, far away.',
+          },
+        ],
+      ),
+    );
+    await tester.pumpWidget(wrap(ResultsView(game: game, partnerName: 'Ravi')));
+    await tester.pumpAndSettle();
+    expect(find.text('💡 answer: Star Wars', findRichText: true), findsOneWidget);
+    expect(find.text('⭐ star + ⚔️ wars + 🌌 a galaxy far, far away.'), findsOneWidget);
+    expect(find.text('you both said Interstellar 👯 great minds think alike'), findsOneWidget);
   });
 }

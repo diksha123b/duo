@@ -66,6 +66,7 @@ describe('content rules for new types', () => {
         options: [],
         correctOption: null,
         about: null,
+        explanation: null,
       })),
     });
     expect(parsed.success).toBe(true);

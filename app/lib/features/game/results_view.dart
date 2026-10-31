@@ -256,9 +256,60 @@ class _ChoicePair extends StatelessWidget {
         ),
         if (hasKey && q.correctOption != null) ...[
           const SizedBox(height: 8),
-          Text('answer: ${opt(q.correctOption)}', style: Theme.of(context).textTheme.bodySmall),
+          _Explanation(
+            answer: opt(q.correctOption),
+            explanation: q.explanation,
+            // Same wrong guess: you think alike, even if you were both wrong.
+            sameGuess: q.myChoice != null && q.myChoice == q.partnerChoice && !myGood! ? opt(q.myChoice) : null,
+          ),
         ],
       ],
+    );
+  }
+}
+
+/// The right answer, and why: reads the clues and says why the tempting
+/// wrong options don't fit.
+class _Explanation extends StatelessWidget {
+  const _Explanation({required this.answer, this.explanation, this.sameGuess});
+
+  final String answer;
+  final String? explanation;
+  final String? sameGuess;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: DuoColors.sunflower.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: DuoColors.line(context).withValues(alpha: 0.4), width: 1.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text.rich(
+            TextSpan(
+              children: [
+                const TextSpan(text: '💡 answer: '),
+                TextSpan(
+                  text: answer,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ],
+            ),
+            style: text.bodyMedium,
+          ),
+          if (explanation != null) ...[const SizedBox(height: 4), Text(explanation!, style: text.bodySmall)],
+          if (sameGuess != null) ...[
+            const SizedBox(height: 6),
+            Text('you both said $sameGuess 👯 great minds think alike', style: text.labelLarge),
+          ],
+        ],
+      ),
     );
   }
 }

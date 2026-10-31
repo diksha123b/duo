@@ -10,7 +10,7 @@ import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { track } from '../../lib/events.js';
 import { applyCompletion } from '../../lib/streak.js';
 import { addDays, dateToDay, dayToDate, localDay } from '../../lib/time.js';
-import { bankGame } from './bank.js';
+import { bankGame, questionKey } from './bank.js';
 import { AGREE_SCALE, GAME_TYPES, type GameContent, type GameTypeName } from './content.js';
 
 export interface ProvidedGame {
@@ -26,10 +26,12 @@ export type GameProvider = (args: {
   type: GameTypeName;
   // False makes a provider throw instead of degrading, so a job can retry.
   allowFallback?: boolean;
+  // Questions of this type the pair has already had (see questionKey), newest first.
+  seen?: string[];
 }) => Promise<ProvidedGame>;
 
-export const bankProvider: GameProvider = async ({ pair, day, type }) => ({
-  content: bankGame(type, `${pair.id}:${day}`, pair.relationship),
+export const bankProvider: GameProvider = async ({ pair, day, type, seen }) => ({
+  content: bankGame(type, `${pair.id}:${day}`, pair.relationship, seen),
   source: 'BANK',
 });
 
@@ -83,7 +85,13 @@ export class GameService {
     if (existing) return existing;
 
     const type = typeForDay(day);
-    const { content, source } = await this.provider({ pair, day, type, allowFallback: opts.allowFallback });
+    const { content, source } = await this.provider({
+      pair,
+      day,
+      type,
+      allowFallback: opts.allowFallback,
+      seen: await this.seenQuestions(pair.id, type),
+    });
     try {
       return await this.createGame(pair, day, content, source, true);
     } catch (err) {
@@ -91,6 +99,16 @@ export class GameService {
       if (!isUniqueViolation(err)) throw err;
       return this.prisma.game.findFirstOrThrow({ where, include: { questions: true } });
     }
+  }
+
+  /** Every question of `type` the pair has had, newest first, so games don't repeat. */
+  async seenQuestions(pairId: string, type: GameTypeName): Promise<string[]> {
+    const games = await this.prisma.game.findMany({
+      where: { pairId, type },
+      orderBy: { createdAt: 'desc' },
+      select: { questions: { select: { prompt: true, options: true } } },
+    });
+    return games.flatMap((g) => g.questions.map(questionKey));
   }
 
   private createGame(pair: Pair, day: string, content: GameContent, source: 'AI' | 'BANK', isDaily: boolean) {
@@ -108,7 +126,10 @@ export class GameService {
             prompt: q.prompt,
             options: q.options,
             correctOption: q.correctOption ?? null,
-            meta: q.about ? { about: q.about === 'A' ? pair.userAId : pair.userBId } : {},
+            meta: {
+              ...(q.about && { about: q.about === 'A' ? pair.userAId : pair.userBId }),
+              ...(q.explanation && { explanation: q.explanation }),
+            },
           })),
         },
       },
@@ -128,7 +149,12 @@ export class GameService {
     });
     if (open) return { game: await this.view(open.id, userId), created: false };
     // Questions from the curated bank (instant and free), shuffled fresh each round.
-    const content = bankGame(type, `${pair.id}:bonus:${Date.now()}:${Math.random()}`, pair.relationship);
+    const content = bankGame(
+      type,
+      `${pair.id}:bonus:${Date.now()}:${Math.random()}`,
+      pair.relationship,
+      await this.seenQuestions(pair.id, type),
+    );
     const game = await this.createGame(pair, localDay(pair.timezone), content, 'BANK', false);
     await track(this.prisma, 'game_started', {
       userId,
@@ -397,6 +423,8 @@ export class GameService {
         myRanking: meSubmitted ? ranking(q.id, true) : null,
         partnerRanking: completed ? ranking(q.id, false) : null,
         correctOption: completed ? q.correctOption : null,
+        // Why the answer is right; hidden until both have played, like the answer.
+        explanation: completed ? ((q.meta as { explanation?: string }).explanation ?? null) : null,
         reactions: completed ? { mine: reactionOf(q.id, true), partner: reactionOf(q.id, false) } : null,
       })),
       summary: completed ? summarise(game, userId) : null,

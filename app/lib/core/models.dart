@@ -165,6 +165,7 @@ class GameQuestion {
     this.myChoice,
     this.partnerChoice,
     this.correctOption,
+    this.explanation,
     this.myRanking,
     this.partnerRanking,
     this.myReaction,
@@ -178,6 +179,9 @@ class GameQuestion {
   final int? myChoice;
   final int? partnerChoice;
   final int? correctOption;
+
+  /// Trivia and emoji decode: why the answer is right, once results are revealed.
+  final String? explanation;
 
   /// Rank it only: option indexes, first to last.
   final List<int>? myRanking;
@@ -199,6 +203,7 @@ class GameQuestion {
     myChoice: j['myChoice'] as int?,
     partnerChoice: j['partnerChoice'] as int?,
     correctOption: j['correctOption'] as int?,
+    explanation: j['explanation'] as String?,
     myRanking: (j['myRanking'] as List?)?.cast<int>(),
     partnerRanking: (j['partnerRanking'] as List?)?.cast<int>(),
     myReaction: (j['reactions'] as Map?)?['mine'] as String?,

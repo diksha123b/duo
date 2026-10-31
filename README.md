@@ -22,6 +22,9 @@ both finish. Then react, chat about it, challenge each other in the arcade, and 
 - **A shared pet** that hatches from an egg the first time you play together, then grows (baby →
   kid → grown-up) as you play daily games, arcade games and bonus rounds and give it a daily pat.
   It gets hungry, then sleepy, when you skip days, and unlocks outfits as it levels up
+- **500+ hand-written questions** with no repeats: each pair only gets questions it hasn't seen,
+  enough for three months of daily games. Every trivia and emoji answer comes with an explanation
+  that also says why the tempting wrong options don't fit
 - **Bonus rounds**: finished today's game? Start extra rounds of any type. They don't touch the streak
 - **Live reveal and presence** over WebSockets: see when the other person is online or playing, and
   get the results the instant they submit
