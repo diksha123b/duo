@@ -1,7 +1,6 @@
 // Renders Duo's icons and link-preview image from the app's own widgets.
 // Run: flutter test tool/brand_images_test.dart --update-goldens
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:duo/core/models.dart';
 import 'package:duo/ui/buddies.dart';
