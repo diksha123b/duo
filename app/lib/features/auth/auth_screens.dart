@@ -394,7 +394,7 @@ class GuestButton extends ConsumerWidget {
   }
 }
 
-/// The quickest way in: a bot partner who plays along, for trying Duo alone.
+/// The quickest way in: Duo Jr., a practice partner who plays along, for trying Duo alone.
 class DemoButton extends StatelessWidget {
   const DemoButton({super.key});
 
@@ -409,7 +409,7 @@ class DemoButton extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Row(
         children: [
-          const Text('🤖', style: TextStyle(fontSize: 30)),
+          const Text('✨', style: TextStyle(fontSize: 30)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -417,7 +417,7 @@ class DemoButton extends StatelessWidget {
               children: [
                 Text('try the demo', style: text.titleLarge?.copyWith(color: DuoColors.ink)),
                 Text(
-                  'no partner needed: play with Sam, a bot who plays along',
+                  'no partner needed: play with Duo Jr., our practice partner',
                   style: text.bodySmall?.copyWith(color: DuoColors.ink),
                 ),
               ],
@@ -485,7 +485,7 @@ class _GuestDialogState extends ConsumerState<_GuestDialog> {
             const SizedBox(height: 8),
             Text(
               widget.demo
-                  ? 'you’ll be paired with Sam, a bot, so you can try everything straight away.'
+                  ? 'you’ll be paired with Duo Jr., Duo’s practice partner (not a real person), so you can try everything straight away.'
                   : 'you can save your account with an email any time, so you never lose your streak.',
               style: Theme.of(context).textTheme.bodySmall,
             ),

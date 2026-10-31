@@ -151,7 +151,7 @@ Future<void> signOut(BuildContext context, WidgetRef ref) async {
   if (choice == 'out') return auth.logout();
 }
 
-/// Demo mode: explains the bot, and offers the real thing.
+/// Demo mode: explains Duo Jr., and offers the real thing.
 class DemoBanner extends ConsumerWidget {
   const DemoBanner({super.key, required this.onPlayForReal});
 
@@ -168,11 +168,11 @@ class DemoBanner extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
         child: Row(
           children: [
-            const Text('🤖', style: TextStyle(fontSize: 26)),
+            const Text('✨', style: TextStyle(fontSize: 26)),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
-                'demo mode: Sam is a bot who plays along. try a daily game, the arcade, or pat the pet!',
+                'practice mode: Duo Jr. plays along (it’s not a real person). try a daily game, the arcade, or pat the pet!',
                 style: TextStyle(color: DuoColors.ink, fontWeight: FontWeight.w700),
               ),
             ),

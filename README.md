@@ -8,13 +8,13 @@ both finish. Then react, chat about it, challenge each other in the arcade, and 
 > **Live:** [dyduo.netlify.app](https://dyduo.netlify.app) · **API:** `duo-api-tumt.onrender.com` ·
 > **Android:** latest APK on [Releases](../../releases)
 >
-> No partner handy? Tap **try the demo** to play with a bot.
+> No partner handy? Tap **try the demo** to play with Duo Jr., the built-in practice partner.
 
 <p align="center">
   <img src="docs/screenshots/login.png" width="19%" alt="Sign in, with a demo button for trying Duo alone">
   <img src="docs/screenshots/home.png" width="19%" alt="Home: streak, today's game and the pair's pet">
   <img src="docs/screenshots/results.png" width="19%" alt="Results: both answers side by side, with an explanation">
-  <img src="docs/screenshots/chess.png" width="19%" alt="Live chess against the demo bot">
+  <img src="docs/screenshots/chess.png" width="19%" alt="Live chess against Duo Jr., the practice partner">
   <img src="docs/screenshots/pet.png" width="19%" alt="Dressing up the pet with unlocked outfits">
 </p>
 
@@ -22,7 +22,7 @@ both finish. Then react, chat about it, challenge each other in the arcade, and 
 
 - **Six daily game types** on one engine: *Who knows whom better*, *Would you rather*, *Team
   trivia*, *Emoji decode*, *Agree-o-meter* and *Rank it*
-- **Demo mode**: try Duo alone. Sam, a demo bot, answers the daily game after you, plays every
+- **Demo mode**: try Duo alone. Duo Jr., a built-in practice partner, answers the daily game after you, plays every
   arcade game at the level you pick (easy, normal or hard), reacts and chats about results, and
   pats the pet back. On easy and normal it sticks to ~10k everyday words in Word Tiles
 - **Any relationship**: pick a preset (partners, best friends, siblings, parent & child,

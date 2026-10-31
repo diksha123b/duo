@@ -11,7 +11,8 @@ const demoBody = z.object({
   timezone: z.string().refine(isValidTimezone, 'Unknown timezone').optional(),
 });
 
-export const BOT_NAME = 'Sam (bot)';
+/** Duo's practice partner: always presented as not a real person. */
+export const BOT_NAME = 'Duo Jr.';
 // Interests are filled in so the demo skips onboarding and goes straight home.
 const DEMO_INTERESTS = ['Movies', 'Food', 'Music', 'Travel'];
 

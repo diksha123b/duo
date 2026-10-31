@@ -84,7 +84,7 @@ void main() {
     await tester.ensureVisible(find.text('try the demo'));
     await tester.tap(find.text('try the demo'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('paired with Sam, a bot'), findsOneWidget);
+    expect(find.textContaining('paired with Duo Jr.'), findsOneWidget);
     await tester.enterText(find.widgetWithText(TextFormField, 'your name'), 'Asha');
     await tester.tap(find.text('start the demo'));
     await tester.pumpAndSettle();
@@ -143,9 +143,11 @@ void main() {
     expect(auth.logouts, 1);
   });
 
-  testWidgets('demo mode shows the bot banner, not the save banner, and signs out without a warning', (tester) async {
+  testWidgets('practice mode shows the Duo Jr. banner, not the save banner, and signs out without a warning', (
+    tester,
+  ) async {
     final auth = await pumpHome(tester, guest: true, demo: true);
-    expect(find.textContaining('demo mode'), findsOneWidget);
+    expect(find.textContaining('practice mode'), findsOneWidget);
     expect(find.textContaining('you’re playing as a guest'), findsNothing);
     await tester.tap(find.text('sign out'));
     await tester.pumpAndSettle();

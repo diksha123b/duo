@@ -29,7 +29,7 @@ describe('demo mode', () => {
     const pair = (
       await ctx.app.inject({ method: 'GET', url: '/pair', headers: auth(tokens.accessToken) })
     ).json();
-    expect(pair.pair.partner.displayName).toBe('Sam (bot)');
+    expect(pair.pair.partner.displayName).toBe('Duo Jr.');
   });
 
   it('the bot answers after you, so the results appear, and then reacts and chats', async () => {

@@ -70,7 +70,7 @@ void main() {
     final arcade = await pumpLobby(tester, demo: true);
     await tester.tap(find.text('word tiles'));
     await tester.pumpAndSettle();
-    expect(find.text('how good should Sam play?'), findsOneWidget);
+    expect(find.text('how good should Duo Jr. play?'), findsOneWidget);
     await tester.tap(find.text('🔥 hard'));
     await tester.tap(find.text('📜 full · ~25 min'));
     await tester.pump();
@@ -89,7 +89,7 @@ void main() {
     final again = await pumpLobby(tester, demo: false);
     await tester.tap(find.text('word tiles'));
     await tester.pumpAndSettle();
-    expect(find.text('how good should Sam play?'), findsNothing);
+    expect(find.text('how good should Duo Jr. play?'), findsNothing);
     await tester.tap(find.text('start'));
     await tester.pumpAndSettle();
     expect(again.starts.single, (ArcadeKind.wordTiles, true, null));

@@ -74,7 +74,7 @@ class _NewGameSheetState extends State<_NewGameSheet> {
           Text('new game of ${style.name}', style: text.headlineSmall),
           if (widget.vsBot) ...[
             const SizedBox(height: 16),
-            Text('how good should Sam play?', style: text.titleMedium),
+            Text('how good should Duo Jr. play?', style: text.titleMedium),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
