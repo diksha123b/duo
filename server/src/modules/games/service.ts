@@ -18,8 +18,8 @@ export interface ProvidedGame {
   source: 'AI' | 'BANK';
 }
 
-// Where game content comes from. Day 3 uses the bank; Day 5 swaps in the LLM
-// with the bank as fallback, without touching anything below.
+// Where game content comes from: the bank, or the LLM with the bank as
+// fallback, without touching anything below.
 export type GameProvider = (args: {
   pair: Pair;
   day: string;
@@ -72,7 +72,7 @@ export class GameService {
   }
 
   // Returns the pair's daily game for `day`, creating it on first request.
-  // The nightly job (Day 5) normally creates it ahead of time.
+  // The nightly job normally creates it ahead of time.
   async ensureGame(
     pair: Pair,
     day: string,

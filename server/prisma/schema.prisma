@@ -1,5 +1,4 @@
-// Duo data model. Locked on Day 1: every table the 7-day plan needs exists
-// here, so later days add behaviour, not migrations.
+// Duo data model.
 
 generator client {
   provider = "prisma-client-js"
@@ -253,7 +252,7 @@ enum GenerationStatus {
   FAILED
 }
 
-// One row per LLM generation attempt: latency, cost and failures (Day 5).
+// One row per LLM generation attempt: latency, cost and failures.
 model GenerationLog {
   id           String           @id @default(uuid()) @db.Uuid
   pairId       String           @map("pair_id") @db.Uuid

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // The one shape every game takes, whether it comes from the question bank or
-// the LLM. Day 5 validates LLM output against exactly this schema.
+// the LLM. LLM output is validated against exactly this schema.
 
 const option = z.string().trim().min(1).max(80);
 

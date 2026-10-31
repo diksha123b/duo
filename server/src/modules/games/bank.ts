@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { AGREE_SCALE, type GameContent, type GameTypeName } from './content.js';
 
-// Curated questions. Used directly until Day 5, then as the fallback when
+// Curated questions. Used when AI generation is off, and as the fallback when
 // LLM generation fails or returns something that doesn't validate.
 
 import type { Relationship } from '@prisma/client';
