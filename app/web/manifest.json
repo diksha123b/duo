@@ -1,11 +1,11 @@
 {
-    "name": "duo",
+    "name": "duo: one tiny game a day",
     "short_name": "duo",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFF7EC",
+    "theme_color": "#FFDE6E",
+    "description": "One tiny game a day for you and your person: daily games, live chess and ludo, and a pet you raise together.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
