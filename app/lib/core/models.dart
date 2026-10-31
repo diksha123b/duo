@@ -18,7 +18,14 @@ class Profile {
 }
 
 class Me {
-  const Me({required this.id, required this.email, required this.profile, this.pairId, this.guest = false});
+  const Me({
+    required this.id,
+    required this.email,
+    required this.profile,
+    this.pairId,
+    this.guest = false,
+    this.demo = false,
+  });
 
   final String id;
 
@@ -27,6 +34,9 @@ class Me {
 
   /// Playing with just a name; the account only lives on this device until saved.
   final bool guest;
+
+  /// Paired with the demo bot.
+  final bool demo;
   final Profile profile;
   final String? pairId;
 
@@ -37,6 +47,7 @@ class Me {
     id: j['id'] as String,
     email: j['email'] as String?,
     guest: j['guest'] as bool? ?? false,
+    demo: j['demo'] as bool? ?? false,
     pairId: j['pairId'] as String?,
     profile: Profile.fromJson(j['profile'] as Map<String, dynamic>),
   );

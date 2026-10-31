@@ -11,7 +11,8 @@ class SaveAccountBanner extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(authProvider).value?.guest != true) return const SizedBox.shrink();
+    final me = ref.watch(authProvider).value;
+    if (me?.guest != true || me!.demo) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.only(top: 18),
       child: Sticker(
@@ -128,7 +129,9 @@ class _SaveAccountSheetState extends ConsumerState<_SaveAccountSheet> {
 /// Signing out of a guest account loses it for good, so ask first.
 Future<void> signOut(BuildContext context, WidgetRef ref) async {
   final auth = ref.read(authProvider.notifier);
-  if (ref.read(authProvider).value?.guest != true) return auth.logout();
+  final me = ref.read(authProvider).value;
+  // Demo accounts are throwaway; only a real guest account is worth saving.
+  if (me?.guest != true || me!.demo) return auth.logout();
   final choice = await showDialog<String>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -146,4 +149,38 @@ Future<void> signOut(BuildContext context, WidgetRef ref) async {
   if (!context.mounted) return;
   if (choice == 'save') return showSaveAccountSheet(context);
   if (choice == 'out') return auth.logout();
+}
+
+/// Demo mode: explains the bot, and offers the real thing.
+class DemoBanner extends ConsumerWidget {
+  const DemoBanner({super.key, required this.onPlayForReal});
+
+  final Future<void> Function() onPlayForReal;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(authProvider).value?.demo != true) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 18),
+      child: Sticker(
+        color: DuoColors.sky,
+        depth: 3,
+        padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+        child: Row(
+          children: [
+            const Text('🤖', style: TextStyle(fontSize: 26)),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'demo mode: Sam is a bot who plays along. try a daily game, the arcade, or pat the pet!',
+                style: TextStyle(color: DuoColors.ink, fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 8),
+            StickerButton(label: 'play for real', color: DuoColors.sunflower, onPressed: onPlayForReal),
+          ],
+        ),
+      ),
+    );
+  }
 }

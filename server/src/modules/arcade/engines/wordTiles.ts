@@ -74,18 +74,20 @@ export const BONUSES: Record<string, Bonus> = (() => {
 export const CENTER = Math.floor(N / 2);
 
 let dictionary: Set<string> | null = null;
-/** Lazily loaded word list (ENABLE, public domain). */
-export function isWord(word: string): boolean {
+/** The word list (ENABLE, public domain), loaded on first use. */
+export function words(): Set<string> {
   dictionary ??= new Set(
     readFileSync(new URL('../../../../data/words.txt', import.meta.url), 'utf8')
       .split('\n')
       .map((w) => w.trim().toUpperCase())
       .filter(Boolean),
   );
-  return dictionary.has(word);
+  return dictionary;
 }
 
-interface Placed {
+export const isWord = (word: string): boolean => words().has(word);
+
+export interface Placed {
   r: number;
   c: number;
   letter: string;
@@ -182,7 +184,7 @@ export function scorePlacement(
   return { words, points };
 }
 
-function checkPlacement(board: (string | null)[], tiles: Placed[]) {
+export function checkPlacement(board: (string | null)[], tiles: Placed[]) {
   if (tiles.length === 0) throw new MoveError('Place at least one tile');
   const keys = new Set<string>();
   for (const t of tiles) {

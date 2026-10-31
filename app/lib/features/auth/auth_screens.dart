@@ -48,6 +48,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return _AuthScaffold(
       title: 'welcome back!',
       subtitle: 'your duo is waiting. probably.',
+      top: const DemoButton(),
       child: Form(
         key: _form,
         child: Column(
@@ -120,6 +121,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return _AuthScaffold(
       title: 'make an account',
       subtitle: 'then invite your person. any person.',
+      top: const DemoButton(),
       child: Form(
         key: _form,
         child: Column(
@@ -162,11 +164,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 }
 
 class _AuthScaffold extends StatelessWidget {
-  const _AuthScaffold({required this.title, required this.subtitle, required this.child});
+  const _AuthScaffold({required this.title, required this.subtitle, required this.child, this.top});
 
   final String title;
   final String subtitle;
   final Widget child;
+
+  /// Shown above the form card.
+  final Widget? top;
 
   @override
   Widget build(BuildContext context) {
@@ -201,6 +206,10 @@ class _AuthScaffold extends StatelessWidget {
                     const _GameMarquee(),
                     const SizedBox(height: 14),
                     const _Banter(),
+                    if (top != null) ...[
+                      const SizedBox(height: 18),
+                      Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: top),
+                    ],
                     const SizedBox(height: 18),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -385,8 +394,46 @@ class GuestButton extends ConsumerWidget {
   }
 }
 
+/// The quickest way in: a bot partner who plays along, for trying Duo alone.
+class DemoButton extends StatelessWidget {
+  const DemoButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Sticker(
+      color: DuoColors.sunflower,
+      depth: 4,
+      tilt: -0.8,
+      onTap: () => showDialog<void>(context: context, builder: (_) => const _GuestDialog(demo: true)),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        children: [
+          const Text('🤖', style: TextStyle(fontSize: 30)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('try the demo', style: text.titleLarge?.copyWith(color: DuoColors.ink)),
+                Text(
+                  'no partner needed: play with Sam, a bot who plays along',
+                  style: text.bodySmall?.copyWith(color: DuoColors.ink),
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_rounded, color: DuoColors.ink),
+        ],
+      ),
+    );
+  }
+}
+
 class _GuestDialog extends ConsumerStatefulWidget {
-  const _GuestDialog();
+  const _GuestDialog({this.demo = false});
+
+  final bool demo;
 
   @override
   ConsumerState<_GuestDialog> createState() => _GuestDialogState();
@@ -407,7 +454,8 @@ class _GuestDialogState extends ConsumerState<_GuestDialog> {
     if (!_form.currentState!.validate()) return;
     setState(() => _error = null);
     try {
-      await ref.read(authProvider.notifier).playAsGuest(_name.text.trim());
+      final auth = ref.read(authProvider.notifier);
+      await (widget.demo ? auth.startDemo(_name.text.trim()) : auth.playAsGuest(_name.text.trim()));
       // Signed in: the router moves on to the next screen.
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -436,7 +484,9 @@ class _GuestDialogState extends ConsumerState<_GuestDialog> {
             ),
             const SizedBox(height: 8),
             Text(
-              'you can save your account with an email any time, so you never lose your streak.',
+              widget.demo
+                  ? 'you’ll be paired with Sam, a bot, so you can try everything straight away.'
+                  : 'you can save your account with an email any time, so you never lose your streak.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             if (_error != null) _ErrorText(_error!),
@@ -445,7 +495,7 @@ class _GuestDialogState extends ConsumerState<_GuestDialog> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('cancel')),
-        BusyButton(label: 'let’s play', onPressed: _go),
+        BusyButton(label: widget.demo ? 'start the demo' : 'let’s play', onPressed: _go),
       ],
     );
   }

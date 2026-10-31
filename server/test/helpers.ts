@@ -28,6 +28,7 @@ export function setupTestApp(opts: { pushSender?: PushSender | null } = {}) {
       redis: ctx.redis,
       verifyGoogle: fakeGoogle,
       pushSender: opts.pushSender,
+      botDelayMs: 0,
     });
   });
 

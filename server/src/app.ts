@@ -18,6 +18,8 @@ import { pushRoutes } from './modules/push/routes.js';
 import { registerPushTriggers } from './modules/push/triggers.js';
 import { gameRoutes } from './modules/games/routes.js';
 import { bankProvider, GameService, type GameProvider } from './modules/games/service.js';
+import { DemoBot } from './modules/demo/bot.js';
+import { demoRoutes } from './modules/demo/routes.js';
 import { pairingRoutes } from './modules/pairing/routes.js';
 import { petRoutes } from './modules/pet/routes.js';
 import { PetService } from './modules/pet/service.js';
@@ -52,6 +54,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     deps: Deps;
     events: EventEmitter<AppEvents>;
+    demoBot: DemoBot;
     authenticate: (req: FastifyRequest) => Promise<void>;
   }
   interface FastifyRequest {
@@ -64,6 +67,8 @@ export type BuildDeps = Omit<Deps, 'tokens' | 'games' | 'arcade' | 'pets' | 'not
   arcadeRng?: Rng;
   /** Overrides real web push (tests). */
   pushSender?: PushSender | null;
+  /** How long the demo bot "thinks" before acting. */
+  botDelayMs?: number;
 };
 
 export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {}) {
@@ -128,7 +133,12 @@ export async function buildApp(deps: BuildDeps, opts: { logger?: boolean } = {})
   await app.register(arcadeRoutes);
   await app.register(petRoutes);
   await app.register(pushRoutes);
+  await app.register(demoRoutes);
   registerPushTriggers(app);
+  app.decorate('demoBot', new DemoBot(app, deps.botDelayMs ?? 1500));
+  app.demoBot.register();
+  // Let any bot move in flight finish before the database goes away.
+  app.addHook('onClose', () => app.demoBot.idle());
 
   return app;
 }

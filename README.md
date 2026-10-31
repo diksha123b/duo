@@ -8,12 +8,15 @@ both finish. Then react, chat about it, challenge each other in the arcade, and 
 > **Live:** [dyduo.netlify.app](https://dyduo.netlify.app) · **API:** `duo-api-tumt.onrender.com` ·
 > **Android:** latest APK on [Releases](../../releases)
 >
-> The free API host sleeps when idle, so the first request after a while can take ~50 seconds.
+> No partner handy? Tap **try the demo** to play with a bot.
 
 ## Features
 
 - **Six daily game types** on one engine: *Who knows whom better*, *Would you rather*, *Team
   trivia*, *Emoji decode*, *Agree-o-meter* and *Rank it*
+- **Demo mode**: try Duo alone. Sam, a demo bot, answers the daily game after you, makes its
+  arcade moves (it takes wins, blocks yours and finds real words in Word Tiles), reacts and chats
+  about results, and pats the pet back
 - **Any relationship**: pick a preset (partners, best friends, siblings, parent & child,
   colleagues…) or type your own label. Prompts and copy adapt to it, e.g. no romantic questions
   between siblings
@@ -190,7 +193,8 @@ Render environment variables: `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`, 
 `CORS_ORIGINS` (the Netlify URL), and optionally `ANTHROPIC_API_KEY` and
 `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT`.
 On the free plan there is no background worker, so games are generated on demand when someone
-opens the app.
+opens the app. The free API sleeps after 15 idle minutes; `keep-warm.yml` pings `/health` every
+10 minutes so it stays awake.
 
 `render.yaml` describes the paid setup instead (API + worker + managed Postgres and Redis).
 

@@ -114,6 +114,7 @@ class HomeScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
+                DemoBanner(onPlayForReal: () => _leaveDemo(context, ref)),
                 const SaveAccountBanner(),
                 const PushBanner(),
                 const SizedBox(height: 22),
@@ -152,6 +153,27 @@ class HomeScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Leaves the bot and goes to the invite screen to pair with a real person.
+  Future<void> _leaveDemo(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('play with a real person?'),
+        content: const Text('you’ll leave the demo and get an invite code to share with your person.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('stay in the demo')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('let’s go')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(pairProvider.notifier).unpair();
+    } catch (e) {
+      if (context.mounted) showError(context, e);
+    }
   }
 
   Future<void> _togglePush(BuildContext context, WidgetRef ref, PushState push) async {
